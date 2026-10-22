@@ -1,6 +1,6 @@
 {
-  "versionCode": 9,
-  "versionName": "1.0.8",
-  "apkUrl": "https://github.com/dubeyjideepak/cambridge-pro/releases/download/v1.0.8/CamBridgePro.apk",
-  "changelog": "Direct USB-to-Web Engine for OBS Browser Source (<50ms delay)"
+  "versionCode": 10,
+  "versionName": "1.0.9",
+  "apkUrl": "https://github.com/dubeyjideepak/cambridge-pro/releases/download/v1.0.9/CamBridgePro.apk",
+  "changelog": "Capacity-1 Zero-Lag Frame Queue for OBS Browser Source (<50ms Glass-to-Glass)"
 }

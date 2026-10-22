@@ -2,15 +2,16 @@ package com.cambridge.streamer.stream
 
 import fi.iki.elonen.NanoHTTPD
 import java.io.ByteArrayInputStream
-import java.io.PipedInputStream
-import java.io.PipedOutputStream
+import java.io.InputStream
+import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.TimeUnit
 
 /**
  * Ultra-Low Latency Direct Frame Web Server for OBS Browser Source.
  *
- * Transfers MJPEG frames directly from USB to Wi-Fi with ZERO re-encoding,
- * completely bypassing H.264 encoding and bypassing OBS Media Source's 2-second jitter buffer.
+ * Uses a non-blocking Capacity-1 frame queue that guarantees ZERO lag accumulation.
+ * Stale frames are instantly dropped if the client is slow, ensuring OBS always renders the live frame.
  *
  * Endpoints:
  * - http://<phone-ip>:8080/obs          -> Clean full-screen page for OBS Browser Source (<50ms delay)
@@ -24,7 +25,7 @@ class WebMonitorServer(
     @Volatile
     var isStreaming = false
 
-    private val clientPipes = CopyOnWriteArrayList<PipedOutputStream>()
+    private val clientQueues = CopyOnWriteArrayList<ArrayBlockingQueue<ByteArray>>()
     @Volatile
     private var latestSnapshot: ByteArray? = null
 
@@ -32,27 +33,12 @@ class WebMonitorServer(
         if (!isStreaming || jpegBytes.isEmpty()) return
         latestSnapshot = jpegBytes
 
-        if (clientPipes.isEmpty()) return
+        if (clientQueues.isEmpty()) return
 
-        val boundary = "CAMBRIDGE_FRAME_BOUNDARY"
-        val header = ("--$boundary\r\n" +
-                "Content-Type: image/jpeg\r\n" +
-                "Content-Length: ${jpegBytes.size}\r\n\r\n").toByteArray()
-        val footer = "\r\n".toByteArray()
-
-        val deadPipes = mutableListOf<PipedOutputStream>()
-        for (pipe in clientPipes) {
-            try {
-                pipe.write(header)
-                pipe.write(jpegBytes)
-                pipe.write(footer)
-                pipe.flush()
-            } catch (_: Exception) {
-                deadPipes.add(pipe)
-            }
-        }
-        if (deadPipes.isNotEmpty()) {
-            clientPipes.removeAll(deadPipes)
+        for (queue in clientQueues) {
+            // Drop unread previous frame if consumer hasn't consumed it yet (guarantees ZERO lag accumulation)
+            queue.poll()
+            queue.offer(jpegBytes)
         }
     }
 
@@ -136,8 +122,8 @@ class WebMonitorServer(
                                 background: #000;
                             }
                             .video-container img {
-                                max-width: 100%;
-                                max-height: 100%;
+                                width: 100%;
+                                height: 100%;
                                 object-fit: contain;
                             }
                             footer {
@@ -183,15 +169,55 @@ class WebMonitorServer(
 
     private fun serveMjpegStream(): Response {
         val boundary = "CAMBRIDGE_FRAME_BOUNDARY"
-        val pipedOut = PipedOutputStream()
-        val pipedIn = PipedInputStream(pipedOut, 512 * 1024)
+        val queue = ArrayBlockingQueue<ByteArray>(1)
+        clientQueues.add(queue)
 
-        clientPipes.add(pipedOut)
+        val stream = object : InputStream() {
+            private var currentChunk: ByteArrayInputStream? = null
+            @Volatile private var isClosed = false
+
+            override fun read(): Int {
+                val b = ByteArray(1)
+                val read = read(b, 0, 1)
+                return if (read > 0) b[0].toInt() and 0xFF else -1
+            }
+
+            override fun read(b: ByteArray, off: Int, len: Int): Int {
+                if (isClosed || !isStreaming) return -1
+
+                while (currentChunk == null || currentChunk!!.available() == 0) {
+                    if (isClosed || !isStreaming) return -1
+                    try {
+                        val frameBytes = queue.poll(1000, TimeUnit.MILLISECONDS) ?: continue
+                        val header = ("--$boundary\r\n" +
+                                "Content-Type: image/jpeg\r\n" +
+                                "Content-Length: ${frameBytes.size}\r\n\r\n").toByteArray()
+                        val footer = "\r\n".toByteArray()
+
+                        val combined = ByteArray(header.size + frameBytes.size + footer.size)
+                        System.arraycopy(header, 0, combined, 0, header.size)
+                        System.arraycopy(frameBytes, 0, combined, header.size, frameBytes.size)
+                        System.arraycopy(footer, 0, combined, header.size + frameBytes.size, footer.size)
+                        currentChunk = ByteArrayInputStream(combined)
+                    } catch (_: InterruptedException) {
+                        return -1
+                    }
+                }
+
+                return currentChunk?.read(b, off, len) ?: -1
+            }
+
+            override fun close() {
+                isClosed = true
+                clientQueues.remove(queue)
+                super.close()
+            }
+        }
 
         val response = newChunkedResponse(
             Response.Status.OK,
             "multipart/x-mixed-replace; boundary=$boundary",
-            pipedIn
+            stream
         )
         response.addHeader("Cache-Control", "no-cache, no-store, must-revalidate, pre-check=0, post-check=0, max-age=0")
         response.addHeader("Pragma", "no-cache")
@@ -201,10 +227,7 @@ class WebMonitorServer(
     }
 
     override fun stop() {
-        for (pipe in clientPipes) {
-            try { pipe.close() } catch (_: Exception) {}
-        }
-        clientPipes.clear()
+        clientQueues.clear()
         super.stop()
     }
 }

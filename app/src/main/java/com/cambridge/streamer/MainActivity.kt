@@ -67,6 +67,8 @@ class MainActivity : AppCompatActivity() {
 
     private var currentMode = ProductionMode.BRIDGE_TO_OBS
     private var isStreaming = false
+    private var captureWidth = 1920
+    private var captureHeight = 1080
 
     // Gallery Image Picker for Prasang / Jhanki Picture-in-Picture
     private val imagePickerLauncher = registerForActivityResult(
@@ -219,7 +221,15 @@ class MainActivity : AppCompatActivity() {
             override fun onUvcOpened(device: UsbDevice, width: Int, height: Int) {
                 runOnUiThread {
                     activeBackend = CameraBackend.NATIVE_UVC
-                    binding.tvUsbStatus.text = "✅ HDMI: ${device.productName ?: "4K Card"} (${width}x${height})"
+                    captureWidth = width
+                    captureHeight = height
+                    val resTag = when {
+                        width >= 3840 -> "4K UHD"
+                        width >= 1920 -> "1080p FHD"
+                        width >= 1280 -> "720p HD"
+                        else -> "${width}x${height}"
+                    }
+                    binding.tvUsbStatus.text = "✅ HDMI: ${device.productName ?: "Capture Card"} ($resTag $width x $height)"
                     binding.tvUsbStatus.setTextColor(Color.parseColor("#00E676"))
                     binding.layoutHdmiStandby.visibility = View.GONE
                     binding.viewFinder.visibility = View.GONE
@@ -234,8 +244,15 @@ class MainActivity : AppCompatActivity() {
                         binding.tvVideoTelemetry.text = "⚠️ VIDEO IN: 0 FPS — NO HDMI SIGNAL"
                         binding.tvVideoTelemetry.setTextColor(Color.parseColor("#FFA000"))
                     } else {
+                        val resTag = when {
+                            captureWidth >= 3840 -> "4K UHD"
+                            captureWidth >= 1920 -> "1080p FHD"
+                            captureWidth >= 1280 -> "720p HD"
+                            captureWidth > 0 -> "${captureWidth}x${captureHeight}"
+                            else -> "HD"
+                        }
                         binding.tvVideoTelemetry.text =
-                            "🟢 VIDEO IN: 1080p @ ${String.format("%.1f", fps)} FPS ($totalFrames frames)"
+                            "🟢 VIDEO IN: $resTag @ ${String.format("%.1f", fps)} FPS ($totalFrames frames)"
                         binding.tvVideoTelemetry.setTextColor(Color.parseColor("#00E676"))
                     }
                 }
@@ -600,8 +617,13 @@ class MainActivity : AppCompatActivity() {
             provider.unbindAll()
             val useCases = mutableListOf<androidx.camera.core.UseCase>()
 
+            val targetSize = android.util.Size(
+                if (captureWidth > 0) captureWidth else 1920,
+                if (captureHeight > 0) captureHeight else 1080
+            )
+
             val screenPreview = Preview.Builder()
-                .setTargetResolution(android.util.Size(1920, 1080))
+                .setTargetResolution(targetSize)
                 .build()
                 .also { it.setSurfaceProvider(binding.viewFinder.surfaceProvider) }
 
@@ -613,7 +635,7 @@ class MainActivity : AppCompatActivity() {
             val encoderSurface = videoEncoder?.inputSurface
             if (isStreaming && encoderSurface != null && encoderSurface.isValid) {
                 val encoderPreview = Preview.Builder()
-                    .setTargetResolution(android.util.Size(1920, 1080))
+                    .setTargetResolution(targetSize)
                     .build()
 
                 encoderPreview.setSurfaceProvider { request: SurfaceRequest ->
@@ -728,8 +750,13 @@ class MainActivity : AppCompatActivity() {
         val encoderSurface = videoEncoder?.inputSurface ?: return
         val cameraSelector = resolveExternalCameraSelector(provider) ?: return
 
+        val targetSize = android.util.Size(
+            if (captureWidth > 0) captureWidth else 1920,
+            if (captureHeight > 0) captureHeight else 1080
+        )
+
         val encoderPreview = Preview.Builder()
-            .setTargetResolution(android.util.Size(1920, 1080))
+            .setTargetResolution(targetSize)
             .build()
 
         encoderPreview.setSurfaceProvider { request: SurfaceRequest ->
@@ -743,7 +770,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         val screenPreview = Preview.Builder()
-            .setTargetResolution(android.util.Size(1920, 1080))
+            .setTargetResolution(targetSize)
             .build()
             .also { it.setSurfaceProvider(binding.viewFinder.surfaceProvider) }
 
@@ -770,9 +797,13 @@ class MainActivity : AppCompatActivity() {
     private fun startBroadcastingBridge() {
         isStreaming = true
 
+        val encWidth = if (captureWidth > 0) captureWidth else 1920
+        val encHeight = if (captureHeight > 0) captureHeight else 1080
+        val encBitrate = if (encWidth <= 1280) 2_500_000 else 4_500_000
+
         // Step 1: Start encoder first — creates the inputSurface
         videoEncoder = HardwareVideoEncoder(
-            width = 1920, height = 1080, bitrate = 4_500_000, frameRate = 30
+            width = encWidth, height = encHeight, bitrate = encBitrate, frameRate = 30
         ) { frameBytes, isKeyFrame, ptsMs ->
             bondingEngine.dispatchPacket(frameBytes)
             rtspServer?.broadcastH264Packet(frameBytes, isKeyFrame, ptsMs)
@@ -857,8 +888,12 @@ class MainActivity : AppCompatActivity() {
         Log.d(TAG, "Studio RTMP target: ${rtmpUrl.take(45)}…")
 
         // Step 1: Start encoder — creates MediaCodec input surface
+        val encWidth = if (captureWidth > 0) captureWidth else 1920
+        val encHeight = if (captureHeight > 0) captureHeight else 1080
+        val encBitrate = if (encWidth <= 1280) 2_500_000 else 4_500_000
+
         videoEncoder = HardwareVideoEncoder(
-            width = 1920, height = 1080, bitrate = 4_500_000, frameRate = 30
+            width = encWidth, height = encHeight, bitrate = encBitrate, frameRate = 30
         ) { frameBytes, isKeyFrame, ptsMs ->
             bondingEngine.dispatchPacket(frameBytes)
             rtmpStreamManager?.pushVideoFrame(frameBytes, isKeyFrame, ptsMs)

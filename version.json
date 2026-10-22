@@ -1,6 +1,6 @@
 {
-  "versionCode": 3,
-  "versionName": "1.0.2",
-  "apkUrl": "https://github.com/dubeyjideepak/cambridge-pro/releases/download/v1.0.2/CamBridgePro.apk",
-  "changelog": "Added Live Video FPS & Audio VU Telemetry HUD"
+  "versionCode": 4,
+  "versionName": "1.0.3",
+  "apkUrl": "https://github.com/dubeyjideepak/cambridge-pro/releases/download/v1.0.3/CamBridgePro.apk",
+  "changelog": "Added Dynamic 720p HD and 1080p FHD Input & Encoder Adaptation"
 }

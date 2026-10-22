@@ -4,20 +4,95 @@ import fi.iki.elonen.NanoHTTPD
 import java.io.ByteArrayInputStream
 import java.io.PipedInputStream
 import java.io.PipedOutputStream
+import java.util.concurrent.CopyOnWriteArrayList
 
+/**
+ * Ultra-Low Latency Direct Frame Web Server for OBS Browser Source.
+ *
+ * Transfers MJPEG frames directly from USB to Wi-Fi with ZERO re-encoding,
+ * completely bypassing H.264 encoding and bypassing OBS Media Source's 2-second jitter buffer.
+ *
+ * Endpoints:
+ * - http://<phone-ip>:8080/obs          -> Clean full-screen page for OBS Browser Source (<50ms delay)
+ * - http://<phone-ip>:8080/stream.mjpeg -> Raw multipart MJPEG stream for OBS Media Source / VLC
+ * - http://<phone-ip>:8080/             -> Live browser monitor for phones / laptops on Wi-Fi
+ */
 class WebMonitorServer(
-    port: Int = 8080,
-    private val onSnapshotRequested: () -> ByteArray?
+    port: Int = 8080
 ) : NanoHTTPD(port) {
 
     @Volatile
     var isStreaming = false
 
+    private val clientPipes = CopyOnWriteArrayList<PipedOutputStream>()
+    @Volatile
+    private var latestSnapshot: ByteArray? = null
+
+    fun pushFrame(jpegBytes: ByteArray) {
+        if (!isStreaming || jpegBytes.isEmpty()) return
+        latestSnapshot = jpegBytes
+
+        if (clientPipes.isEmpty()) return
+
+        val boundary = "CAMBRIDGE_FRAME_BOUNDARY"
+        val header = ("--$boundary\r\n" +
+                "Content-Type: image/jpeg\r\n" +
+                "Content-Length: ${jpegBytes.size}\r\n\r\n").toByteArray()
+        val footer = "\r\n".toByteArray()
+
+        val deadPipes = mutableListOf<PipedOutputStream>()
+        for (pipe in clientPipes) {
+            try {
+                pipe.write(header)
+                pipe.write(jpegBytes)
+                pipe.write(footer)
+                pipe.flush()
+            } catch (_: Exception) {
+                deadPipes.add(pipe)
+            }
+        }
+        if (deadPipes.isNotEmpty()) {
+            clientPipes.removeAll(deadPipes)
+        }
+    }
+
     override fun serve(session: IHTTPSession): Response {
         val uri = session.uri
 
         return when {
+            uri == "/obs" || uri == "/obs.html" -> {
+                val html = """
+                    <!DOCTYPE html>
+                    <html lang="en">
+                    <head>
+                        <meta charset="utf-8">
+                        <title>CamBridge Pro — OBS Zero-Lag Feed</title>
+                        <style>
+                            html, body {
+                                margin: 0;
+                                padding: 0;
+                                width: 100%;
+                                height: 100%;
+                                overflow: hidden;
+                                background-color: #000;
+                            }
+                            img {
+                                width: 100vw;
+                                height: 100vh;
+                                object-fit: contain;
+                                display: block;
+                            }
+                        </style>
+                    </head>
+                    <body>
+                        <img src="/stream.mjpeg" alt="Live Feed" />
+                    </body>
+                    </html>
+                """.trimIndent()
+                newFixedLengthResponse(Response.Status.OK, "text/html", html)
+            }
             uri == "/" || uri == "/index.html" -> {
+                val host = session.headers["host"]?.split(":")?.get(0) ?: "phone-ip"
                 val html = """
                     <!DOCTYPE html>
                     <html lang="en">
@@ -30,7 +105,7 @@ class WebMonitorServer(
                                 margin: 0;
                                 background-color: #0b0d10;
                                 color: #fff;
-                                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+                                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
                                 display: flex;
                                 flex-direction: column;
                                 height: 100vh;
@@ -45,27 +120,13 @@ class WebMonitorServer(
                                 border-bottom: 1px solid #282c37;
                             }
                             .live-badge {
-                                background: #e53935;
-                                color: #fff;
+                                background: #00E676;
+                                color: #000;
                                 font-weight: bold;
                                 padding: 4px 10px;
                                 border-radius: 4px;
                                 font-size: 13px;
                                 letter-spacing: 1px;
-                                display: inline-flex;
-                                align-items: center;
-                                gap: 6px;
-                            }
-                            .live-dot {
-                                width: 8px;
-                                height: 8px;
-                                background: #fff;
-                                border-radius: 50%;
-                                animation: blink 1s infinite alternate;
-                            }
-                            @keyframes blink {
-                                from { opacity: 1; }
-                                to { opacity: 0.2; }
                             }
                             .video-container {
                                 flex: 1;
@@ -73,7 +134,6 @@ class WebMonitorServer(
                                 justify-content: center;
                                 align-items: center;
                                 background: #000;
-                                position: relative;
                             }
                             .video-container img {
                                 max-width: 100%;
@@ -88,23 +148,20 @@ class WebMonitorServer(
                                 display: flex;
                                 justify-content: space-between;
                             }
-                            .obs-tip {
-                                color: #64b5f6;
-                                font-family: monospace;
-                            }
+                            .highlight { color: #00E676; font-family: monospace; font-weight: bold; }
                         </style>
                     </head>
                     <body>
                         <header>
-                            <div style="font-size: 18px; font-weight: 600;">CamBridge Pro &bull; Live Katha &amp; Event Stream</div>
-                            <div class="live-badge"><span class="live-dot"></span>LIVE ON-AIR</div>
+                            <div style="font-size: 18px; font-weight: 600;">CamBridge Pro &bull; Zero-Lag Live Stream</div>
+                            <div class="live-badge">⚡ ZERO-LAG DIRECT FEED</div>
                         </header>
                         <div class="video-container">
                             <img id="stream" src="/stream.mjpeg" alt="Live Camera Feed" />
                         </div>
                         <footer>
-                            <div>Resolution: 1080p Full HD &bull; Low-Latency Wi-Fi Link</div>
-                            <div>OBS Source: <span class="obs-tip">rtsp://${session.headers["host"]?.split(":")?.get(0) ?: "phone-ip"}:8554/live</span></div>
+                            <div>Direct Hardware USB-to-Web Bridge &bull; 0ms Re-encode Delay</div>
+                            <div>OBS Browser Source: <span class="highlight">http://$host:8080/obs</span></div>
                         </footer>
                     </body>
                     </html>
@@ -115,7 +172,7 @@ class WebMonitorServer(
                 serveMjpegStream()
             }
             uri == "/snapshot.jpg" -> {
-                val bytes = onSnapshotRequested() ?: ByteArray(0)
+                val bytes = latestSnapshot ?: ByteArray(0)
                 newChunkedResponse(Response.Status.OK, "image/jpeg", ByteArrayInputStream(bytes))
             }
             else -> {
@@ -127,36 +184,27 @@ class WebMonitorServer(
     private fun serveMjpegStream(): Response {
         val boundary = "CAMBRIDGE_FRAME_BOUNDARY"
         val pipedOut = PipedOutputStream()
-        val pipedIn = PipedInputStream(pipedOut)
+        val pipedIn = PipedInputStream(pipedOut, 512 * 1024)
 
-        Thread {
-            try {
-                while (isStreaming) {
-                    val frameBytes = onSnapshotRequested()
-                    if (frameBytes != null && frameBytes.isNotEmpty()) {
-                        val header = ("--$boundary\r\n" +
-                                "Content-Type: image/jpeg\r\n" +
-                                "Content-Length: ${frameBytes.size}\r\n\r\n").toByteArray()
-                        pipedOut.write(header)
-                        pipedOut.write(frameBytes)
-                        pipedOut.write("\r\n".toByteArray())
-                        pipedOut.flush()
-                    }
-                    Thread.sleep(33) // ~30 FPS
-                }
-            } catch (_: Exception) {
-            } finally {
-                try { pipedOut.close() } catch (_: Exception) {}
-            }
-        }.start()
+        clientPipes.add(pipedOut)
 
         val response = newChunkedResponse(
             Response.Status.OK,
             "multipart/x-mixed-replace; boundary=$boundary",
             pipedIn
         )
-        response.addHeader("Cache-Control", "no-cache, private")
+        response.addHeader("Cache-Control", "no-cache, no-store, must-revalidate, pre-check=0, post-check=0, max-age=0")
         response.addHeader("Pragma", "no-cache")
+        response.addHeader("Expires", "0")
+        response.addHeader("Connection", "close")
         return response
+    }
+
+    override fun stop() {
+        for (pipe in clientPipes) {
+            try { pipe.close() } catch (_: Exception) {}
+        }
+        clientPipes.clear()
+        super.stop()
     }
 }

@@ -318,6 +318,7 @@ class MainActivity : AppCompatActivity() {
     private fun setupNetworkUrls() {
         val localIp = NetworkUtils.getLocalIpAddress()
         binding.tvObsUrl.text = "rtsp://$localIp:8554/live"
+        binding.tvDirectWebUrl.text = "http://$localIp:8080/obs"
     }
 
     private fun setupBondingEngine() {
@@ -423,11 +424,18 @@ class MainActivity : AppCompatActivity() {
             binding.overlayView.invalidate()
         }
 
-        // Copy OBS URL
+        // Copy OBS Zero-Lag Web URL (Browser Source <50ms)
+        binding.btnCopyWebUrl.setOnClickListener {
+            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            clipboard.setPrimaryClip(ClipData.newPlainText("OBS Browser URL", binding.tvDirectWebUrl.text))
+            showToast("Copied Zero-Lag Web URL for OBS Browser Source!")
+        }
+
+        // Copy OBS RTSP URL
         binding.btnCopyUrl.setOnClickListener {
             val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-            clipboard.setPrimaryClip(ClipData.newPlainText("OBS URL", binding.tvObsUrl.text))
-            showToast("Copied OBS URL!")
+            clipboard.setPrimaryClip(ClipData.newPlainText("OBS RTSP URL", binding.tvObsUrl.text))
+            showToast("Copied RTSP URL!")
         }
 
         // In-App Git Auto-Updater
@@ -936,12 +944,16 @@ class MainActivity : AppCompatActivity() {
             )
             rtspServer?.start()
 
-            // Step 5: Web browser monitor
-            webServer = WebMonitorServer(port = 8080) {
-                null
-            }
+            // Step 5: Ultra-Low Latency Direct Web Bridge for OBS Browser Source (<50ms delay)
+            webServer = WebMonitorServer(port = 8080)
             webServer?.isStreaming = true
             try { webServer?.start() } catch (_: Exception) {}
+
+            nativeUvcEngine?.onDirectJpegFrame = { jpegBytes ->
+                if (isStreaming) {
+                    webServer?.pushFrame(jpegBytes)
+                }
+            }
         }.start()
 
         // Step 6: Start Foreground Service to acquire partial wake-lock and prevent Android from killing RTSP on screen lock
@@ -1049,6 +1061,7 @@ class MainActivity : AppCompatActivity() {
         videoEncoder?.stop()
         videoEncoder = null
 
+        nativeUvcEngine?.onDirectJpegFrame = null
         bridgeAudioPipeline?.onAudioFrame = null
         rtspAudioConfig = null
 

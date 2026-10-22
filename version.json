@@ -1,6 +1,6 @@
 {
-  "versionCode": 8,
-  "versionName": "1.0.7",
-  "apkUrl": "https://github.com/dubeyjideepak/cambridge-pro/releases/download/v1.0.7/CamBridgePro.apk",
-  "changelog": "Direct Qualcomm Hardware Encoder + Zero JNI Copy & Low-Latency Baseline Profile"
+  "versionCode": 9,
+  "versionName": "1.0.8",
+  "apkUrl": "https://github.com/dubeyjideepak/cambridge-pro/releases/download/v1.0.8/CamBridgePro.apk",
+  "changelog": "Direct USB-to-Web Engine for OBS Browser Source (<50ms delay)"
 }

@@ -40,6 +40,9 @@ class NativeUvcCameraEngine(
     private var activeDevice: UsbDevice? = null
     private val attachedSurfaces = mutableSetOf<Surface>()
 
+    /** Optional callback with raw JPEG frame bytes straight from USB capture card for zero-latency direct bridge */
+    var onDirectJpegFrame: ((ByteArray) -> Unit)? = null
+
     init {
         try {
             UVCUtils.init(context)
@@ -102,6 +105,24 @@ class NativeUvcCameraEngine(
                                     Log.d(TAG, "Attached surface to UVC: hash=${surface.hashCode()}")
                                 }
                             }
+                        }
+
+                        // Register direct frame callback for zero-latency web bridge
+                        try {
+                            helper.setFrameCallback({ buffer ->
+                                val callback = onDirectJpegFrame ?: return@setFrameCallback
+                                if (buffer != null && buffer.remaining() > 4) {
+                                    val b0 = buffer.get(0).toInt() and 0xFF
+                                    val b1 = buffer.get(1).toInt() and 0xFF
+                                    if (b0 == 0xFF && b1 == 0xD8) {
+                                        val bytes = ByteArray(buffer.remaining())
+                                        buffer.get(bytes)
+                                        callback(bytes)
+                                    }
+                                }
+                            }, com.serenegiant.usb.UVCCamera.PIXEL_FORMAT_RAW)
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Direct frame callback error", e)
                         }
 
                         helper.startPreview()

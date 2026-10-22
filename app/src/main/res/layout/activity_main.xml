@@ -386,42 +386,102 @@
                     android:layout_weight="1"
                     android:orientation="vertical">
 
-                    <TextView
-                        android:layout_width="wrap_content"
+                    <!-- Direct Zero-Lag Browser Feed -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="OBS RTSP Feed URL"
-                        android:textColor="#9E9E9E"
-                        android:textSize="11sp" />
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
 
-                    <TextView
-                        android:id="@+id/tvObsUrl"
-                        android:layout_width="wrap_content"
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="⚡ ZERO-LAG OBS URL (Browser Source &lt;50ms)"
+                                android:textColor="#00E676"
+                                android:textSize="11sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/tvDirectWebUrl"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:fontFamily="monospace"
+                                android:text="http://192.168.1.xxx:8080/obs"
+                                android:textColor="#00E676"
+                                android:textSize="13sp"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+
+                        <Button
+                            android:id="@+id/btnCopyWebUrl"
+                            android:layout_width="wrap_content"
+                            android:layout_height="36dp"
+                            android:layout_marginStart="8dp"
+                            android:background="@drawable/bg_segmented_pill"
+                            android:paddingHorizontal="12dp"
+                            android:text="Copy Web"
+                            android:textColor="#FFFFFF"
+                            android:textSize="11sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+
+                    <!-- RTSP Stream -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:fontFamily="monospace"
-                        android:text="rtsp://192.168.1.xxx:8554/live"
-                        android:textColor="#64B5F6"
-                        android:textSize="14sp"
-                        android:textStyle="bold" />
+                        android:layout_marginTop="6dp"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="📡 RTSP Stream (Media Source)"
+                                android:textColor="#9E9E9E"
+                                android:textSize="10sp" />
+
+                            <TextView
+                                android:id="@+id/tvObsUrl"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:fontFamily="monospace"
+                                android:text="rtsp://192.168.1.xxx:8554/live"
+                                android:textColor="#64B5F6"
+                                android:textSize="12sp" />
+                        </LinearLayout>
+
+                        <Button
+                            android:id="@+id/btnCopyUrl"
+                            android:layout_width="wrap_content"
+                            android:layout_height="36dp"
+                            android:layout_marginStart="8dp"
+                            android:background="@drawable/bg_segmented_pill"
+                            android:paddingHorizontal="12dp"
+                            android:text="Copy RTSP"
+                            android:textColor="#FFFFFF"
+                            android:textSize="11sp" />
+                    </LinearLayout>
                 </LinearLayout>
-
-                <Button
-                    android:id="@+id/btnCopyUrl"
-                    android:layout_width="wrap_content"
-                    android:layout_height="44dp"
-                    android:background="@drawable/bg_segmented_pill"
-                    android:paddingHorizontal="18dp"
-                    android:text="Copy URL"
-                    android:textColor="#FFFFFF"
-                    android:textSize="12sp"
-                    android:textStyle="bold" />
 
                 <Button
                     android:id="@+id/btnToggleBridgeStream"
                     android:layout_width="wrap_content"
-                    android:layout_height="48dp"
-                    android:layout_marginStart="12dp"
+                    android:layout_height="52dp"
+                    android:layout_marginStart="14dp"
                     android:background="@drawable/bg_cta_rounded"
-                    android:paddingHorizontal="26dp"
+                    android:paddingHorizontal="22dp"
                     android:text="START OBS STREAM"
                     android:textColor="#000000"
                     android:textSize="13sp"

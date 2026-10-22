@@ -140,6 +140,9 @@ class MainActivity : AppCompatActivity() {
         } else {
             showToast("Camera permission required for video capture")
         }
+        if (permissions[Manifest.permission.RECORD_AUDIO] == true) {
+            initAudioPipeline()
+        }
     }
 
     // ─── Lifecycle ─────────────────────────────────────────────────────────────
@@ -182,6 +185,8 @@ class MainActivity : AppCompatActivity() {
         super.onDestroy()
         stopBroadcasting()
         nativeUvcEngine?.stop()
+        bridgeAudioPipeline?.stop()
+        bridgeAudioPipeline = null
         bondingEngine.stopBonding()
         cameraExecutor.shutdown()
         try { unregisterReceiver(usbReceiver) } catch (_: Exception) {}
@@ -223,6 +228,19 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
+            override fun onVideoFrameStats(fps: Float, totalFrames: Long, bytesPerSec: Long) {
+                runOnUiThread {
+                    if (totalFrames == 0L) {
+                        binding.tvVideoTelemetry.text = "⚠️ VIDEO IN: 0 FPS — NO HDMI SIGNAL"
+                        binding.tvVideoTelemetry.setTextColor(Color.parseColor("#FFA000"))
+                    } else {
+                        binding.tvVideoTelemetry.text =
+                            "🟢 VIDEO IN: 1080p @ ${String.format("%.1f", fps)} FPS ($totalFrames frames)"
+                        binding.tvVideoTelemetry.setTextColor(Color.parseColor("#00E676"))
+                    }
+                }
+            }
+
             override fun onUvcClosed(device: UsbDevice) {
                 runOnUiThread {
                     if (activeBackend == CameraBackend.NATIVE_UVC) {
@@ -231,6 +249,8 @@ class MainActivity : AppCompatActivity() {
                         binding.tvUsbStatus.setTextColor(Color.parseColor("#FF5252"))
                         binding.layoutHdmiStandby.visibility = View.VISIBLE
                         binding.uvcViewFinder.visibility = View.GONE
+                        binding.tvVideoTelemetry.text = "⚪ VIDEO IN: Card Disconnected"
+                        binding.tvVideoTelemetry.setTextColor(Color.parseColor("#9E9E9E"))
                     }
                 }
             }
@@ -475,6 +495,7 @@ class MainActivity : AppCompatActivity() {
 
         if (needed.isEmpty()) {
             initCameraProvider()
+            initAudioPipeline()
         } else {
             permissionLauncher.launch(needed.toTypedArray())
         }
@@ -485,6 +506,52 @@ class MainActivity : AppCompatActivity() {
             cameraProvider = ProcessCameraProvider.getInstance(this).get()
             bindCamera(currentMode)
         }, ContextCompat.getMainExecutor(this))
+    }
+
+    private fun initAudioPipeline() {
+        if (bridgeAudioPipeline != null) return
+
+        bridgeAudioPipeline = com.cambridge.streamer.audio.AudioCapturePipeline(
+            context = this,
+            sampleRate = 48000,
+            channelConfig = android.media.AudioFormat.CHANNEL_IN_MONO,
+            bitrate = 128_000,
+            onAudioRoutingChecked = { isUsb, deviceName ->
+                runOnUiThread {
+                    if (isUsb) {
+                        binding.tvUsbStatus.text = "✅ HDMI: Video & $deviceName"
+                    }
+                }
+            },
+            onAudioSpecificConfig = { config ->
+                rtspAudioConfig = config
+            },
+            onAudioFrame = { rawAac, dtsMs ->
+                if (isStreaming) {
+                    rtspServer?.broadcastAudioPacket(rawAac, dtsMs)
+                }
+            }
+        ).apply {
+            onAudioLevel = { dbLevel, isUsb, deviceName ->
+                runOnUiThread {
+                    val bars = when {
+                        dbLevel > -6f  -> "[ ▂▄▆█ ]"
+                        dbLevel > -14f -> "[ ▂▄▆_ ]"
+                        dbLevel > -24f -> "[ ▂▄__ ]"
+                        dbLevel > -38f -> "[ ▂___ ]"
+                        else           -> "[ ____ ]"
+                    }
+                    val icon = if (isUsb) "🟢" else "🟡"
+                    val source = if (isUsb) "HDMI Audio" else "Phone Mic"
+                    binding.tvAudioTelemetry.text =
+                        "$icon AUDIO IN: $source $bars ${String.format("%.0f", dbLevel)} dB"
+                    binding.tvAudioTelemetry.setTextColor(
+                        if (isUsb) Color.parseColor("#00E676") else Color.parseColor("#FFD54F")
+                    )
+                }
+            }
+            start()
+        }
     }
 
     /**
@@ -560,6 +627,32 @@ class MainActivity : AppCompatActivity() {
                 }
                 useCases.add(encoderPreview)
             }
+
+            var frameCount = 0
+            var totalFrames = 0L
+            var lastFpsCheck = android.os.SystemClock.elapsedRealtime()
+
+            val analysis = ImageAnalysis.Builder()
+                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                .build()
+            analysis.setAnalyzer(cameraExecutor) { image ->
+                val now = android.os.SystemClock.elapsedRealtime()
+                frameCount++
+                totalFrames++
+                val dt = now - lastFpsCheck
+                if (dt >= 1000) {
+                    val fps = (frameCount * 1000f) / dt
+                    frameCount = 0
+                    lastFpsCheck = now
+                    runOnUiThread {
+                        binding.tvVideoTelemetry.text =
+                            "🟢 VIDEO IN: HAL @ ${String.format("%.1f", fps)} FPS ($totalFrames frames)"
+                        binding.tvVideoTelemetry.setTextColor(Color.parseColor("#00E676"))
+                    }
+                }
+                image.close()
+            }
+            useCases.add(analysis)
 
             try {
                 camera = provider.bindToLifecycle(this, cameraSelector, *useCases.toTypedArray())
@@ -686,27 +779,13 @@ class MainActivity : AppCompatActivity() {
         }
         videoEncoder?.start()
 
-        // Step 2: Start HDMI Audio Capture Pipeline (UAC capture, 48kHz broadcast standard)
-        bridgeAudioPipeline = com.cambridge.streamer.audio.AudioCapturePipeline(
-            context = this,
-            sampleRate = 48000,
-            channelConfig = android.media.AudioFormat.CHANNEL_IN_MONO,
-            bitrate = 128_000,
-            onAudioRoutingChecked = { isUsb, deviceName ->
-                runOnUiThread {
-                    if (isUsb) {
-                        binding.tvUsbStatus.text = "✅ HDMI: Video & $deviceName"
-                    }
-                }
-            },
-            onAudioSpecificConfig = { config ->
-                rtspAudioConfig = config
-            },
-            onAudioFrame = { rawAac, dtsMs ->
+        // Step 2: Ensure HDMI Audio Capture Pipeline is initialized and capturing 48kHz audio
+        initAudioPipeline()
+        bridgeAudioPipeline?.onAudioFrame = { rawAac, dtsMs ->
+            if (isStreaming) {
                 rtspServer?.broadcastAudioPacket(rawAac, dtsMs)
             }
-        )
-        bridgeAudioPipeline?.start()
+        }
 
         // Steps 3 & 4 on a background thread:
         // - Wait for encoder inputSurface to be valid (MediaCodec creates it synchronously in start(),
@@ -852,8 +931,7 @@ class MainActivity : AppCompatActivity() {
         videoEncoder?.stop()
         videoEncoder = null
 
-        bridgeAudioPipeline?.stop()
-        bridgeAudioPipeline = null
+        bridgeAudioPipeline?.onAudioFrame = null
         rtspAudioConfig = null
 
         rtspServer?.stop()

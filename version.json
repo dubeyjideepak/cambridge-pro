@@ -1,6 +1,6 @@
 {
-  "versionCode": 2,
-  "versionName": "1.0.1",
-  "apkUrl": "https://github.com/dubeyjideepak/cambridge-pro/releases/download/v1.0.1/CamBridgePro.apk",
-  "changelog": "Fixed live preview & UVC surface pipeline"
+  "versionCode": 3,
+  "versionName": "1.0.2",
+  "apkUrl": "https://github.com/dubeyjideepak/cambridge-pro/releases/download/v1.0.2/CamBridgePro.apk",
+  "changelog": "Added Live Video FPS & Audio VU Telemetry HUD"
 }

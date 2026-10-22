@@ -30,10 +30,12 @@ class AudioCapturePipeline(
     private val bitrate: Int = 128_000,
     /** Optional callback with verified active routed audio device. */
     val onAudioRoutingChecked: ((isUsb: Boolean, deviceName: String) -> Unit)? = null,
+    /** Optional callback with live decibel volume level and source device for UI VU meter. */
+    var onAudioLevel: ((dbLevel: Float, isUsb: Boolean, deviceName: String) -> Unit)? = null,
     /** Called with the AudioSpecificConfig (csd-0) byte array. */
-    val onAudioSpecificConfig: (ByteArray) -> Unit,
+    var onAudioSpecificConfig: ((ByteArray) -> Unit)? = null,
     /** Called for every AAC frame. [rawAac] has NO ADTS header. [dtsMs] is presentation time in ms. */
-    val onAudioFrame: (rawAac: ByteArray, dtsMs: Long) -> Unit
+    var onAudioFrame: ((rawAac: ByteArray, dtsMs: Long) -> Unit)? = null
 ) {
 
     private val TAG = "AudioCapturePipeline"
@@ -160,11 +162,43 @@ class AudioCapturePipeline(
         val bufferInfo = MediaCodec.BufferInfo()
         var ascSent = false
 
+        var lastLevelReport = 0L
+        var sumSquares = 0.0
+        var sampleCount = 0
+
         try {
             while (running) {
                 // 1. Read PCM from microphone
                 val bytesRead = audioRecord.read(pcmBuffer, 0, pcmBuffer.size)
                 if (bytesRead <= 0) continue
+
+                // 1a. Compute live RMS decibel volume level for VU meter
+                val numSamples = bytesRead / 2
+                var p = 0
+                for (s in 0 until numSamples) {
+                    val sample = ((pcmBuffer[p + 1].toInt() shl 8) or (pcmBuffer[p].toInt() and 0xFF)).toShort()
+                    sumSquares += (sample * sample)
+                    sampleCount++
+                    p += 2
+                }
+
+                val now = android.os.SystemClock.elapsedRealtime()
+                if (now - lastLevelReport >= 120) {
+                    val rms = if (sampleCount > 0) Math.sqrt(sumSquares / sampleCount) else 0.0
+                    val db = if (rms > 1.0) (20 * Math.log10(rms / 32767.0)).toFloat().coerceIn(-60f, 0f) else -60f
+                    sumSquares = 0.0
+                    sampleCount = 0
+                    lastLevelReport = now
+
+                    val currentRouted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) audioRecord.routedDevice else null
+                    val isUsbDevice = currentRouted?.let {
+                        it.type == AudioDeviceInfo.TYPE_USB_DEVICE ||
+                        it.type == AudioDeviceInfo.TYPE_USB_HEADSET ||
+                        it.type == AudioDeviceInfo.TYPE_USB_ACCESSORY
+                    } ?: false
+                    val devName = currentRouted?.productName?.toString() ?: if (isUsbDevice) "HDMI USB Audio" else "Phone Mic"
+                    onAudioLevel?.invoke(db, isUsbDevice, devName)
+                }
 
                 // 2. Feed PCM into AAC encoder
                 val inputIdx = codec.dequeueInputBuffer(10_000L)
@@ -190,7 +224,7 @@ class AudioCapturePipeline(
                                     csd0.get(asc)
                                     cachedAudioSpecificConfig = asc
                                     Log.d(TAG, "AAC AudioSpecificConfig: ${asc.contentToString()}")
-                                    onAudioSpecificConfig(asc)
+                                    onAudioSpecificConfig?.invoke(asc)
                                     ascSent = true
                                 }
                             }
@@ -201,7 +235,6 @@ class AudioCapturePipeline(
                                 val dtsMs = bufferInfo.presentationTimeUs / 1000L
 
                                 // Strip 7-byte ADTS header if present
-                                // ADTS sync word: 0xFFF
                                 val offset = bufferInfo.offset
                                 val hasAdts = outputBuf.get(offset).toInt() and 0xFF == 0xFF &&
                                         outputBuf.get(offset + 1).toInt() and 0xF0 == 0xF0
@@ -212,7 +245,7 @@ class AudioCapturePipeline(
                                     val rawAac = ByteArray(dataSize)
                                     outputBuf.position(dataOffset)
                                     outputBuf.get(rawAac)
-                                    onAudioFrame(rawAac, dtsMs)
+                                    onAudioFrame?.invoke(rawAac, dtsMs)
                                 }
                             }
                             codec.releaseOutputBuffer(outputIdx, false)

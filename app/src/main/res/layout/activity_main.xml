@@ -169,6 +169,50 @@
             android:textStyle="bold" />
     </LinearLayout>
 
+    <!-- Live Hardware Capture Telemetry Bar (HDMI Video FPS + Audio VU Meter) -->
+    <LinearLayout
+        android:id="@+id/hardwareTelemetryBar"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginTop="8dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/topHudBar">
+
+        <!-- Live Video In Telemetry Pill -->
+        <TextView
+            android:id="@+id/tvVideoTelemetry"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_glass_card"
+            android:fontFamily="monospace"
+            android:paddingHorizontal="12dp"
+            android:paddingVertical="6dp"
+            android:text="🎥 VIDEO IN: Standby"
+            android:textColor="#FFA000"
+            android:textSize="11sp"
+            android:textStyle="bold" />
+
+        <!-- Live Audio In VU Meter Pill -->
+        <TextView
+            android:id="@+id/tvAudioTelemetry"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:background="@drawable/bg_glass_card"
+            android:fontFamily="monospace"
+            android:paddingHorizontal="12dp"
+            android:paddingVertical="6dp"
+            android:text="🎙️ AUDIO IN: Standby"
+            android:textColor="#9E9E9E"
+            android:textSize="11sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
     <!-- Bottom Floating Pro Control Card -->
     <com.google.android.material.card.MaterialCardView
         android:id="@+id/bottomControlCard"

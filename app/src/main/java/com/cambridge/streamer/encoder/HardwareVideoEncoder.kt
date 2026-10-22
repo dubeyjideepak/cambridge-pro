@@ -38,6 +38,8 @@ class HardwareVideoEncoder(
                 setInteger(MediaFormat.KEY_BIT_RATE, bitrate)
                 setInteger(MediaFormat.KEY_FRAME_RATE, frameRate)
                 setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1) // 1 second GOP for fast OBS sync
+                setInteger(MediaFormat.KEY_BITRATE_MODE, MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_CBR)
+                try { setInteger("max-bframes", 0) } catch (_: Exception) {} // Force 0 B-frames for zero reorder latency
                 // Low latency mode — not supported on all Qualcomm/MediaTek SoCs; safe-guard with try/catch
                 try { setInteger(MediaFormat.KEY_LATENCY, 0) } catch (_: Exception) {}
                 try { setInteger(MediaFormat.KEY_PRIORITY, 0) } catch (_: Exception) {} // Realtime priority

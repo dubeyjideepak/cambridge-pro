@@ -50,6 +50,10 @@ class RtspServerManager(
 
                 while (isRunning) {
                     val socket = serverSocket?.accept() ?: break
+                    try {
+                        socket.tcpNoDelay = true
+                        socket.sendBufferSize = 1024 * 1024
+                    } catch (_: Exception) {}
                     val sessionId = sessionCounter.incrementAndGet().toString()
                     val session = RtspClientSession(socket, sessionId, getSpsPps, getAudioConfig, onRequestKeyFrame)
                     clientSessions[sessionId] = session
@@ -379,7 +383,7 @@ class RtspServerManager(
                 System.arraycopy(nalu, 0, rtpPacket, 12, nalu.size)
                 videoSeq = (videoSeq + 1) and 0xFFFF
 
-                dispatchRtpPacket(rtpPacket, isVideoTcp, videoInterleavedChannel, videoRtpSocket, videoRtpPort, ip)
+                dispatchRtpPacket(rtpPacket, isVideoTcp, videoInterleavedChannel, videoRtpSocket, videoRtpPort, ip, flushNow = isLastNaluInAccessUnit)
             } else {
                 var offset = 1
 
@@ -413,7 +417,8 @@ class RtspServerManager(
                     offset += payloadSize
                     videoSeq = (videoSeq + 1) and 0xFFFF
 
-                    dispatchRtpPacket(rtpPacket, isVideoTcp, videoInterleavedChannel, videoRtpSocket, videoRtpPort, ip)
+                    val isLastPacketOfFrame = (isEnd && isLastNaluInAccessUnit)
+                    dispatchRtpPacket(rtpPacket, isVideoTcp, videoInterleavedChannel, videoRtpSocket, videoRtpPort, ip, flushNow = isLastPacketOfFrame)
                 }
             }
         }
@@ -452,7 +457,7 @@ class RtspServerManager(
             System.arraycopy(rawAac, 0, rtpPacket, 16, rawAac.size)
             audioSeq = (audioSeq + 1) and 0xFFFF
 
-            dispatchRtpPacket(rtpPacket, isAudioTcp, audioInterleavedChannel, audioRtpSocket, audioRtpPort, ip)
+            dispatchRtpPacket(rtpPacket, isAudioTcp, audioInterleavedChannel, audioRtpSocket, audioRtpPort, ip, flushNow = true)
         }
 
         private fun dispatchRtpPacket(
@@ -461,7 +466,8 @@ class RtspServerManager(
             interleavedChan: Int,
             udpSocket: DatagramSocket?,
             udpPort: Int,
-            ip: InetAddress
+            ip: InetAddress,
+            flushNow: Boolean = true
         ) {
             try {
                 if (isTcp) {
@@ -474,7 +480,9 @@ class RtspServerManager(
                     synchronized(writer) {
                         writer.write(channelHeader)
                         writer.write(packet)
-                        writer.flush()
+                        if (flushNow) {
+                            writer.flush()
+                        }
                     }
                 } else {
                     val sock = udpSocket ?: return

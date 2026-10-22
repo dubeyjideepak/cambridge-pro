@@ -717,21 +717,37 @@ class MainActivity : AppCompatActivity() {
         val engine = nativeUvcEngine ?: return
 
         binding.viewFinder.visibility = View.GONE
-        binding.uvcViewFinder.visibility = View.VISIBLE
         binding.layoutHdmiStandby.visibility = View.GONE
 
-        // 1. Always ensure phone screen preview is attached
         val holderSurface = binding.uvcViewFinder.holder.surface
-        if (holderSurface.isValid) {
-            engine.addSurface(holderSurface)
-            Log.d(TAG, "Attached screen viewfinder surface to UVC engine")
-        }
-
-        // 2. Attach video encoder input surface when broadcasting (OBS Bridge or Studio Live)
         val encoderSurface = videoEncoder?.inputSurface
-        if (isStreaming && encoderSurface != null && encoderSurface.isValid) {
-            engine.addSurface(encoderSurface)
-            Log.d(TAG, "Attached encoder input surface to UVC engine for streaming")
+
+        if (isStreaming && currentMode == ProductionMode.BRIDGE_TO_OBS) {
+            // STOP SCREEN PREVIEW DURING OBS STREAMING:
+            // Eliminates GPU double-blitting, display VSYNC delay, and phone thermal throttling.
+            // 100% of GPU & bus throughput is dedicated to hardware MediaCodec!
+            if (holderSurface.isValid) {
+                engine.removeSurface(holderSurface)
+            }
+            binding.uvcViewFinder.visibility = View.GONE
+
+            if (encoderSurface != null && encoderSurface.isValid) {
+                engine.addSurface(encoderSurface)
+                Log.d(TAG, "Bridge streaming active: Screen preview STOPPED for zero latency & max speed")
+            }
+        } else {
+            // Standby (framing preview) or In-App Studio mode:
+            binding.uvcViewFinder.visibility = View.VISIBLE
+            if (holderSurface.isValid) {
+                engine.addSurface(holderSurface)
+                Log.d(TAG, "Screen preview attached")
+            }
+
+            if (isStreaming && encoderSurface != null && encoderSurface.isValid) {
+                engine.addSurface(encoderSurface)
+            } else if (!isStreaming && encoderSurface != null) {
+                engine.removeSurface(encoderSurface)
+            }
         }
     }
 
@@ -798,7 +814,7 @@ class MainActivity : AppCompatActivity() {
 
         val encWidth = if (captureWidth > 0) captureWidth else 1920
         val encHeight = if (captureHeight > 0) captureHeight else 1080
-        val encBitrate = if (encWidth <= 1280) 2_500_000 else 4_500_000
+        val encBitrate = if (encWidth <= 1280) 2_000_000 else 3_500_000
 
         // Step 1: Start encoder first — creates the inputSurface
         videoEncoder = HardwareVideoEncoder(

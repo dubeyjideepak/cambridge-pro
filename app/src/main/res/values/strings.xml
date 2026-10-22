@@ -1,0 +1,13 @@
+<resources>
+    <string name="app_name">CamBridge Pro</string>
+    <string name="app_subtitle">Wireless HDMI Broadcast to OBS</string>
+    <string name="status_ready">Status: Ready</string>
+    <string name="status_streaming">Status: LIVE BROADCASTING</string>
+    <string name="status_waiting_usb">Waiting for HDMI Capture Card...</string>
+    <string name="obs_url_label">OBS Studio RTSP Source URL:</string>
+    <string name="web_url_label">Laptop Browser Preview URL:</string>
+    <string name="btn_start_stream">START STREAM TO OBS</string>
+    <string name="btn_stop_stream">STOP STREAM</string>
+    <string name="copy_url">Copy URL</string>
+    <string name="copied_to_clipboard">URL copied to clipboard!</string>
+</resources>

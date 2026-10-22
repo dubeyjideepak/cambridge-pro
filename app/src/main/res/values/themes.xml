@@ -1,0 +1,8 @@
+<resources>
+    <style name="Theme.CamBridge" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="android:statusBarColor">@color/bg_dark</item>
+        <item name="android:navigationBarColor">@color/bg_dark</item>
+        <item name="android:windowBackground">@color/bg_dark</item>
+        <item name="colorPrimary">@color/accent_primary</item>
+    </style>
+</resources>

@@ -1,0 +1,6 @@
+{
+  "versionCode": 1,
+  "versionName": "1.0.0",
+  "apkUrl": "https://github.com/dubeyjideepak/cambridge-pro/releases/download/v1.0.0/CamBridgePro.apk",
+  "changelog": "Initial Release: 4K HDMI External Capture, OBS Dual-Track RTSP (48kHz Audio + Video), RTMPS Live Streaming, & Katha Overlays"
+}

@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Outer Pro Camera Lens Rim (Subtle Slate/Cyan Glow) -->
+    <path
+        android:strokeColor="#1E2A38"
+        android:strokeWidth="2.5"
+        android:pathData="M54,26 A28,28 0 1,1 53.9,26 Z" />
+
+    <!-- Lens Index Marks (Pro Camera Barrel Feel) -->
+    <path
+        android:strokeColor="#00E5FF"
+        android:strokeWidth="1.5"
+        android:pathData="M54,23 L54,27 M54,81 L54,85 M23,54 L27,54 M81,54 L85,54" />
+
+    <!-- Optical Aperture Ring (Electric Cyan Gradient feel) -->
+    <path
+        android:strokeColor="#00E5FF"
+        android:strokeWidth="2"
+        android:pathData="M54,32 A22,22 0 1,1 53.9,32 Z" />
+
+    <!-- Aperture Blades (Stylized Camera Iris) -->
+    <path
+        android:strokeColor="#37474F"
+        android:strokeWidth="1.2"
+        android:pathData="M44,36 L66,42 M66,42 L64,68 M64,68 L42,66 M42,66 L38,46 M38,46 L58,36" />
+
+    <!-- Signal Bridge / Broadcast Waves (Left & Right bonded beams) -->
+    <path
+        android:strokeColor="#00E676"
+        android:strokeWidth="2.2"
+        android:strokeLineCap="round"
+        android:pathData="M37,47 A10,10 0 0,0 37,61" />
+    <path
+        android:strokeColor="#00E5FF"
+        android:strokeWidth="2.2"
+        android:strokeLineCap="round"
+        android:pathData="M71,47 A10,10 0 0,1 71,61" />
+
+    <!-- Central Signal Lightning Bolt / Digital Bridge -->
+    <path
+        android:fillColor="#00E676"
+        android:pathData="M56,38 L48,53 L53,53 L51,70 L60,51 L55,51 Z" />
+
+    <!-- Live Glowing Red/Orange Tally Dot in top-right of lens -->
+    <path
+        android:fillColor="#FF5252"
+        android:pathData="M72,32 A4,4 0 1,1 71.9,32 Z" />
+
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M73,31 A1.2,1.2 0 1,1 72.9,31 Z" />
+</vector>

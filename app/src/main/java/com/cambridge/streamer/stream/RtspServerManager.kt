@@ -252,10 +252,12 @@ class RtspServerManager(
                         "1188" // Standard 48000Hz Mono AAC-LC (sampleRateIndex=3, channelConfig=1)
                     }
 
+                    val liveBroadcastHeaders = if (isLowLatencyMode) "a=type:broadcast\r\na=control:*\r\na=range:npt=now-\r\n" else ""
                     val sdp = "v=0\r\n" +
                             "o=- $sessionId 1 IN IP4 0.0.0.0\r\n" +
                             "s=CamBridge Live 4K Repeater Stream\r\n" +
                             "t=0 0\r\n" +
+                            liveBroadcastHeaders +
                             "m=video 0 RTP/AVP 96\r\n" +
                             "c=IN IP4 0.0.0.0\r\n" +
                             "a=rtpmap:96 H264/90000\r\n" +

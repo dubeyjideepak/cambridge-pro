@@ -853,12 +853,35 @@ class MainActivity : AppCompatActivity() {
         val encHeight = if (captureHeight > 0) captureHeight else 1080
         val encBitrate = if (encWidth <= 1280) 2_000_000 else 3_500_000
 
+        var encFrames = 0
+        var totalEncFrames = 0L
+        var lastEncCheck = android.os.SystemClock.elapsedRealtime()
+
         // Step 1: Start encoder first — creates the inputSurface
         videoEncoder = HardwareVideoEncoder(
             width = encWidth, height = encHeight, bitrate = encBitrate, frameRate = 30
         ) { frameBytes, isKeyFrame, ptsMs ->
             bondingEngine.dispatchPacket(frameBytes)
             rtspServer?.broadcastH264Packet(frameBytes, isKeyFrame, ptsMs)
+
+            encFrames++
+            totalEncFrames++
+            val now = android.os.SystemClock.elapsedRealtime()
+            if (now - lastEncCheck >= 1000) {
+                val fps = (encFrames * 1000f) / (now - lastEncCheck)
+                encFrames = 0
+                lastEncCheck = now
+                runOnUiThread {
+                    val resTag = when {
+                        encWidth >= 3840 -> "4K UHD"
+                        encWidth >= 1920 -> "1080p FHD"
+                        else -> "720p HD"
+                    }
+                    binding.tvVideoTelemetry.text =
+                        "🟢 VIDEO OUT: $resTag @ ${String.format("%.1f", fps)} FPS ($totalEncFrames f)"
+                    binding.tvVideoTelemetry.setTextColor(Color.parseColor("#00E676"))
+                }
+            }
         }
         videoEncoder?.start()
 

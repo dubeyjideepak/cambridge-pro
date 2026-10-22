@@ -2,7 +2,9 @@ package com.cambridge.streamer.encoder
 
 import android.media.MediaCodec
 import android.media.MediaCodecInfo
+import android.media.MediaCodecList
 import android.media.MediaFormat
+import android.os.Build
 import android.util.Log
 import android.view.Surface
 import java.io.IOException
@@ -37,15 +39,39 @@ class HardwareVideoEncoder(
                 setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
                 setInteger(MediaFormat.KEY_BIT_RATE, bitrate)
                 setInteger(MediaFormat.KEY_FRAME_RATE, frameRate)
-                setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1) // 1 second GOP for fast OBS sync
+                setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1) // 1 second GOP
                 setInteger(MediaFormat.KEY_BITRATE_MODE, MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_CBR)
-                try { setInteger("max-bframes", 0) } catch (_: Exception) {} // Force 0 B-frames for zero reorder latency
-                // Low latency mode — not supported on all Qualcomm/MediaTek SoCs; safe-guard with try/catch
+
+                // Baseline Profile (strictly 0 B-frames, zero encoder lookahead delay)
+                try {
+                    setInteger(MediaFormat.KEY_PROFILE, MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline)
+                    setInteger(MediaFormat.KEY_LEVEL, MediaCodecInfo.CodecProfileLevel.AVCLevel31)
+                } catch (_: Exception) {}
+
+                try { setInteger("max-bframes", 0) } catch (_: Exception) {}
+                // Qualcomm Snapdragon low-latency vendor extension
+                try { setInteger("vendor.qcom-ext-enc-low-latency.enable", 1) } catch (_: Exception) {}
                 try { setInteger(MediaFormat.KEY_LATENCY, 0) } catch (_: Exception) {}
                 try { setInteger(MediaFormat.KEY_PRIORITY, 0) } catch (_: Exception) {} // Realtime priority
             }
 
-            mediaCodec = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC).apply {
+            // Explicitly query MediaCodecList for Qualcomm / hardware vendor encoder to avoid Google software fallback
+            val codecList = MediaCodecList(MediaCodecList.REGULAR_CODECS)
+            val hwEncoderInfo = codecList.codecInfos.firstOrNull { info ->
+                info.isEncoder &&
+                info.supportedTypes.any { it.equals(MediaFormat.MIMETYPE_VIDEO_AVC, ignoreCase = true) } &&
+                (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) info.isHardwareAccelerated && !info.isSoftwareOnly else !info.name.startsWith("OMX.google."))
+            }
+
+            val codec = if (hwEncoderInfo != null) {
+                Log.d(TAG, "Selected dedicated hardware encoder: ${hwEncoderInfo.name}")
+                MediaCodec.createByCodecName(hwEncoderInfo.name)
+            } else {
+                Log.d(TAG, "Using default AVC encoder")
+                MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC)
+            }
+
+            mediaCodec = codec.apply {
                 configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
                 inputSurface = createInputSurface()
                 start()

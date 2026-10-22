@@ -104,34 +104,6 @@ class NativeUvcCameraEngine(
                             }
                         }
 
-                        // Attach raw frame counter for zero-overhead hardware FPS and incoming packet telemetry
-                        var frameCount = 0
-                        var totalFrames = 0L
-                        var bytesReceived = 0L
-                        var lastFpsCheck = android.os.SystemClock.elapsedRealtime()
-
-                        try {
-                            helper.setFrameCallback({ buffer ->
-                                val now = android.os.SystemClock.elapsedRealtime()
-                                frameCount++
-                                totalFrames++
-                                bytesReceived += buffer.remaining()
-                                val dt = now - lastFpsCheck
-                                if (dt >= 1000) {
-                                    val fps = (frameCount * 1000f) / dt
-                                    val bps = (bytesReceived * 1000L) / dt
-                                    frameCount = 0
-                                    bytesReceived = 0
-                                    lastFpsCheck = now
-                                    mainHandler.post {
-                                        listener.onVideoFrameStats(fps, totalFrames, bps)
-                                    }
-                                }
-                            }, com.serenegiant.usb.UVCCamera.PIXEL_FORMAT_RAW)
-                        } catch (e: Exception) {
-                            Log.w(TAG, "Frame callback setup error", e)
-                        }
-
                         helper.startPreview()
 
                         val size = helper.previewSize
@@ -142,9 +114,9 @@ class NativeUvcCameraEngine(
                             listener.onUvcOpened(device, w, h)
                         }
 
-                        // Watchdog: If no frames arrive after 2.5s, report 0 FPS so UI alerts the operator
+                        // Verify camera is active
                         mainHandler.postDelayed({
-                            if (helper.isCameraOpened && totalFrames == 0L) {
+                            if (!helper.isCameraOpened) {
                                 listener.onVideoFrameStats(0f, 0L, 0L)
                             }
                         }, 2500)

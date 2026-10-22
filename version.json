@@ -1,6 +1,6 @@
 {
-  "versionCode": 7,
-  "versionName": "1.0.6",
-  "apkUrl": "https://github.com/dubeyjideepak/cambridge-pro/releases/download/v1.0.6/CamBridgePro.apk",
-  "changelog": "Ultra Low-Latency (<0.3s) Default Engine with Safe Fallback Mode"
+  "versionCode": 8,
+  "versionName": "1.0.7",
+  "apkUrl": "https://github.com/dubeyjideepak/cambridge-pro/releases/download/v1.0.7/CamBridgePro.apk",
+  "changelog": "Direct Qualcomm Hardware Encoder + Zero JNI Copy & Low-Latency Baseline Profile"
 }

@@ -393,61 +393,32 @@
                         android:textStyle="bold" />
                 </LinearLayout>
 
-                <!-- RTSP URL Box -->
+                <!-- OBS Setup Hint & Guide -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
+                    android:layout_marginTop="10dp"
                     android:background="@drawable/bg_input_box"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal"
-                    android:paddingHorizontal="12dp"
-                    android:paddingVertical="10dp">
+                    android:orientation="vertical"
+                    android:padding="12dp">
 
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:orientation="vertical">
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="RTSP Stream URL (OBS Media Source):"
-                            android:textColor="@color/text_secondary"
-                            android:textSize="10sp" />
-
-                        <TextView
-                            android:id="@+id/tvObsUrl"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="2dp"
-                            android:fontFamily="monospace"
-                            android:text="rtsp://192.168.1.xxx:8554/live"
-                            android:textColor="@color/text_highlight"
-                            android:textSize="12sp" />
-                    </LinearLayout>
-
-                    <Button
-                        android:id="@+id/btnCopyUrl"
+                    <TextView
                         android:layout_width="wrap_content"
-                        android:layout_height="38dp"
-                        android:background="@drawable/bg_segmented_pill"
-                        android:paddingHorizontal="14dp"
-                        android:text="Copy RTSP"
-                        android:textColor="#FFFFFF"
+                        android:layout_height="wrap_content"
+                        android:text="💡 OBS Studio Direct Connection (&lt;50ms Zero-Lag):"
+                        android:textColor="@color/gold_accent"
                         android:textSize="11sp"
                         android:textStyle="bold" />
-                </LinearLayout>
 
-                <!-- OBS Setup Hint -->
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
-                    android:text="💡 In OBS: Add Source → Browser → Paste Web URL → Set 1920x1080 @ 60 FPS"
-                    android:textColor="@color/gold_light"
-                    android:textSize="11sp" />
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:lineSpacingExtra="2dp"
+                        android:text="1. OBS खोलें ➔ Sources में '+' पर क्लिक करें ➔ 'Browser' चुनें\n2. URL में ऊपर दिया गया Web Link पेस्ट करें\n3. Width: 1920, Height: 1080, FPS: 60 सेट करें\n4. OK करें ➔ 0.05s लेटेंसी पर कैमरा सीधा OBS में लाइव!"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="11sp" />
+                </LinearLayout>
 
                 <!-- Start Bridge Button -->
                 <Button

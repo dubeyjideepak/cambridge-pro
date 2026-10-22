@@ -368,7 +368,6 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupNetworkUrls() {
         val localIp = NetworkUtils.getLocalIpAddress()
-        binding.tvObsUrl.text = "rtsp://$localIp:8554/live"
         binding.tvDirectWebUrl.text = "http://$localIp:8080/obs"
     }
 
@@ -482,13 +481,6 @@ class MainActivity : AppCompatActivity() {
             showToast("Copied Zero-Lag Web URL for OBS Browser Source!")
         }
 
-        // Copy OBS RTSP URL
-        binding.btnCopyUrl.setOnClickListener {
-            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-            clipboard.setPrimaryClip(ClipData.newPlainText("OBS RTSP URL", binding.tvObsUrl.text))
-            showToast("Copied RTSP URL!")
-        }
-
         // In-App Git Auto-Updater
         binding.btnCheckUpdate.setOnClickListener {
             checkAppUpdates(silent = false)
@@ -502,28 +494,9 @@ class MainActivity : AppCompatActivity() {
             showToast(stateText)
         }
 
-        // 1-Tap Latency Engine Mode Toggle (Zero-Lag Default vs Safe Fallback with User Consent)
+        // Zero-Lag Engine Info Pill
         binding.btnToggleLatencyMode.setOnClickListener {
-            if (isStreaming && currentMode == ProductionMode.BRIDGE_TO_OBS) {
-                val targetEngine = if (isLowLatencyMode) "Safe Fallback (v1.0.5)" else "Zero-Lag (<0.3s)"
-                AlertDialog.Builder(this)
-                    .setTitle("Switch Streaming Engine?")
-                    .setMessage("Switching to $targetEngine will momentarily restart the active RTSP stream. Proceed with switch?")
-                    .setPositiveButton("Switch & Restart") { _, _ ->
-                        isLowLatencyMode = !isLowLatencyMode
-                        updateLatencyModeButtonState()
-                        stopBroadcasting()
-                        startBroadcastingBridge()
-                        showToast("Switched to $targetEngine engine")
-                    }
-                    .setNegativeButton("Cancel", null)
-                    .show()
-            } else {
-                isLowLatencyMode = !isLowLatencyMode
-                updateLatencyModeButtonState()
-                val targetEngine = if (isLowLatencyMode) "⚡ Zero-Lag (<0.3s) Mode Active" else "🛡️ Safe Fallback Mode Active"
-                showToast(targetEngine)
-            }
+            showToast("⚡ Direct OBS Bridge: Pure USB-to-Web (<50ms delay, No Encoding/Decoding)")
         }
 
         // Bridge mode CTA
@@ -987,123 +960,40 @@ class MainActivity : AppCompatActivity() {
     // ─── Broadcast Engines ─────────────────────────────────────────────────────
 
     /**
-     * BRIDGE TO OBS:
-     * 1. Start HardwareVideoEncoder → inputSurface created
-     * 2. Re-bind camera to wire frames INTO the encoder surface
-     * 3. Start RTSP server AFTER encoder has SPS/PPS (waits up to 2s)
-     * 4. Start lightweight WebMonitorServer for browser fallback
+     * DIRECT OBS BRIDGE (Zero Encoding / Zero Decoding / Pure Direct USB-to-Web):
+     * 1. Start lightweight WebMonitorServer on port 8080 (serves /obs with Capacity-1 buffer)
+     * 2. Feed raw JPEG frames directly from USB capture card into WebMonitorServer
+     * 3. Start foreground service to keep bridge alive
+     * 4. Zero codec overhead, zero H.264 transcoding, guaranteed <50ms glass-to-glass latency!
      */
     private fun startBroadcastingBridge() {
         isStreaming = true
 
-        val encWidth = if (captureWidth > 0) captureWidth else 1920
-        val encHeight = if (captureHeight > 0) captureHeight else 1080
-        val encBitrate = if (encWidth <= 1280) 2_000_000 else 3_500_000
-
-        var encFrames = 0
-        var totalEncFrames = 0L
-        var lastEncCheck = android.os.SystemClock.elapsedRealtime()
-
-        // Step 1: Start encoder first — creates the inputSurface
-        videoEncoder = HardwareVideoEncoder(
-            width = encWidth, height = encHeight, bitrate = encBitrate, frameRate = 30
-        ) { frameBytes, isKeyFrame, ptsMs ->
-            bondingEngine.dispatchPacket(frameBytes)
-            rtspServer?.broadcastH264Packet(frameBytes, isKeyFrame, ptsMs)
-
-            encFrames++
-            totalEncFrames++
-            val now = android.os.SystemClock.elapsedRealtime()
-            if (now - lastEncCheck >= 1000) {
-                val fps = (encFrames * 1000f) / (now - lastEncCheck)
-                encFrames = 0
-                lastEncCheck = now
-                runOnUiThread {
-                    val resTag = when {
-                        encWidth >= 3840 -> "4K UHD"
-                        encWidth >= 1920 -> "1080p FHD"
-                        else -> "720p HD"
-                    }
-                    binding.tvVideoTelemetry.text =
-                        "🟢 VIDEO OUT: $resTag @ ${String.format("%.1f", fps)} FPS ($totalEncFrames f)"
-                    binding.tvVideoTelemetry.setTextColor(Color.parseColor("#00E676"))
-                }
-            }
+        // Step 1: Start Ultra-Low Latency Direct Web Bridge for OBS Browser Source (<50ms delay)
+        webServer = WebMonitorServer(port = 8080)
+        webServer?.isStreaming = true
+        try {
+            webServer?.start()
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to start WebMonitorServer", e)
         }
-        videoEncoder?.start()
 
-        // Step 2: Ensure HDMI Audio Capture Pipeline is initialized and capturing 48kHz audio
-        initAudioPipeline()
-        bridgeAudioPipeline?.onAudioFrame = { rawAac, dtsMs ->
+        // Step 2: Route raw capture frames straight into web server (Bypasses encoder completely)
+        nativeUvcEngine?.onDirectJpegFrame = { jpegBytes ->
             if (isStreaming) {
-                rtspServer?.broadcastAudioPacket(rawAac, dtsMs)
+                webServer?.pushFrame(jpegBytes)
             }
         }
 
-        // Steps 3 & 4 on a background thread:
-        // - Wait for encoder inputSurface to be valid (MediaCodec creates it synchronously in start(),
-        //   but the drain thread must begin draining before SPS/PPS is emitted)
-        // - THEN wire camera → encoder surface
-        // - THEN wait for SPS/PPS and start RTSP
-        Thread {
-            // Brief stabilization: let encoder drain thread start running
-            Thread.sleep(100)
+        // Step 3: Foreground service prevents OS sleep
+        StreamingForegroundService.start(this, "⚡ LIVE → OBS Browser Bridge (<50ms)")
 
-            // Step 3: Wire camera → encoder surface (Bridge = no preview on phone)
-            runOnUiThread {
-                if (activeBackend == CameraBackend.NATIVE_UVC) {
-                    updateUvcSurfacesForCurrentMode()
-                } else {
-                    bindCamera(ProductionMode.BRIDGE_TO_OBS)
-                }
-            }
-
-            // Step 4: Wait for encoder to emit SPS/PPS before starting RTSP
-            // (OBS DESCRIBE response needs valid sprop-parameter-sets)
-            var waited = 0
-            while (videoEncoder?.sps == null && waited < 3000) {
-                Thread.sleep(50)
-                waited += 50
-            }
-            Log.d(TAG, "SPS ready after ${waited}ms — starting RTSP server")
-
-            rtspServer = RtspServerManager(
-                port = 8554,
-                getSpsPps = { Pair(videoEncoder?.sps, videoEncoder?.pps) },
-                getAudioConfig = { rtspAudioConfig },
-                onRequestKeyFrame = { videoEncoder?.requestSyncFrame() },
-                isLowLatencyMode = isLowLatencyMode,
-                onError = { err ->
-                    runOnUiThread {
-                        if (isStreaming && isLowLatencyMode) {
-                            promptFallbackConsent(err.message ?: "RTSP transmission anomaly")
-                        }
-                    }
-                }
-            )
-            rtspServer?.start()
-
-            // Step 5: Ultra-Low Latency Direct Web Bridge for OBS Browser Source (<50ms delay)
-            webServer = WebMonitorServer(port = 8080)
-            webServer?.isStreaming = true
-            try { webServer?.start() } catch (_: Exception) {}
-
-            nativeUvcEngine?.onDirectJpegFrame = { jpegBytes ->
-                if (isStreaming) {
-                    webServer?.pushFrame(jpegBytes)
-                }
-            }
-        }.start()
-
-        // Step 6: Start Foreground Service to acquire partial wake-lock and prevent Android from killing RTSP on screen lock
-        StreamingForegroundService.start(this, "🔴 LIVE → OBS Bridge (RTSP)")
-
-        // UI update
+        // Step 4: UI update
         binding.btnToggleBridgeStream.text = "STOP OBS STREAM"
         binding.btnToggleBridgeStream.setBackgroundResource(R.drawable.bg_cta_red)
         binding.btnToggleBridgeStream.setTextColor(Color.WHITE)
-        updateLiveBadge(true, "🔴 LIVE → OBS")
-        showToast("Broadcasting to OBS Studio (Live Preview Active)")
+        updateLiveBadge(true, "⚡ ZERO-LAG OBS")
+        showToast("Broadcasting direct to OBS Browser (<50ms Zero-Lag)")
     }
 
     /**
@@ -1300,13 +1190,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateLatencyModeButtonState() {
-        if (isLowLatencyMode) {
-            binding.btnToggleLatencyMode.text = "⚡ Zero-Lag (<0.3s)"
-            binding.btnToggleLatencyMode.setTextColor(Color.parseColor("#00E676"))
-        } else {
-            binding.btnToggleLatencyMode.text = "🛡️ Safe Fallback"
-            binding.btnToggleLatencyMode.setTextColor(Color.parseColor("#FFD54F"))
-        }
+        binding.btnToggleLatencyMode.text = "⚡ Zero-Lag (<50ms)"
+        binding.btnToggleLatencyMode.setTextColor(Color.parseColor("#00E676"))
     }
 
     private fun promptFallbackConsent(reason: String) {

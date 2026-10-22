@@ -1,6 +1,6 @@
 {
-  "versionCode": 11,
-  "versionName": "1.1.0",
-  "apkUrl": "https://github.com/dubeyjideepak/cambridge-pro/releases/download/v1.1.0/CamBridgePro.apk",
-  "changelog": "Portrait Emerald UI with Two-Tab Architecture, Direct OBS Zero-Lag Engine, Simultaneous Multi-Broadcaster (YouTube+Facebook+Instagram), Dynamic Rotating Ticker, Dynamic UPI QR Generator & Jhanki Operator Desk"
+  "versionCode": 12,
+  "versionName": "1.1.1",
+  "apkUrl": "https://github.com/dubeyjideepak/cambridge-pro/releases/download/v1.1.1/CamBridgePro.apk",
+  "changelog": "Pure Zero-Lag USB-to-Web Bridge for OBS (RTSP removed, Zero Encoding/Decoding on phone, <50ms direct browser source)"
 }

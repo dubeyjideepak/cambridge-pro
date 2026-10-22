@@ -28,7 +28,9 @@ class RtspServerManager(
     private val port: Int = 8554,
     private val getSpsPps: () -> Pair<ByteArray?, ByteArray?>,
     private val getAudioConfig: () -> ByteArray? = { null },
-    private val onRequestKeyFrame: (() -> Unit)? = null
+    private val onRequestKeyFrame: (() -> Unit)? = null,
+    val isLowLatencyMode: Boolean = true,
+    private val onError: ((Exception) -> Unit)? = null
 ) {
     private val TAG = "RtspServer"
     private var serverSocket: ServerSocket? = null
@@ -46,21 +48,26 @@ class RtspServerManager(
                 serverSocket = ServerSocket(port).apply {
                     reuseAddress = true
                 }
-                Log.d(TAG, "RTSP Server started on port $port (Video + Audio dual-track)")
+                val modeLabel = if (isLowLatencyMode) "Ultra Low-Latency (<0.3s)" else "Safe Fallback"
+                Log.d(TAG, "RTSP Server started on port $port [$modeLabel] (Video + Audio dual-track)")
 
                 while (isRunning) {
                     val socket = serverSocket?.accept() ?: break
                     try {
                         socket.tcpNoDelay = true
-                        socket.sendBufferSize = 1024 * 1024
+                        // Low latency: 64KB (keeps socket buffer <= 40ms) | Fallback: 1MB (buffered)
+                        socket.sendBufferSize = if (isLowLatencyMode) 64 * 1024 else 1024 * 1024
                     } catch (_: Exception) {}
                     val sessionId = sessionCounter.incrementAndGet().toString()
-                    val session = RtspClientSession(socket, sessionId, getSpsPps, getAudioConfig, onRequestKeyFrame)
+                    val session = RtspClientSession(socket, sessionId, getSpsPps, getAudioConfig, onRequestKeyFrame, isLowLatencyMode)
                     clientSessions[sessionId] = session
                     Thread(session, "RtspClient-$sessionId").start()
                 }
             } catch (e: Exception) {
-                if (isRunning) Log.e(TAG, "RTSP Server Error", e)
+                if (isRunning) {
+                    Log.e(TAG, "RTSP Server Error", e)
+                    onError?.invoke(e)
+                }
             }
         }.start()
     }
@@ -156,7 +163,8 @@ class RtspServerManager(
         val sessionId: String,
         private val getSpsPps: () -> Pair<ByteArray?, ByteArray?>,
         private val getAudioConfig: () -> ByteArray?,
-        private val onRequestKeyFrame: (() -> Unit)? = null
+        private val onRequestKeyFrame: (() -> Unit)? = null,
+        private val isLowLatencyMode: Boolean = true
     ) : Runnable {
         private val TAG = "RtspSession"
         private val reader = BufferedReader(InputStreamReader(socket.getInputStream()))
@@ -323,10 +331,13 @@ class RtspServerManager(
                 }
                 "PLAY" -> {
                     isPlaying = true
+                    hasReceivedFirstKeyFrame = !isLowLatencyMode
                     onRequestKeyFrame?.invoke()
+                    val rangeLine = if (isLowLatencyMode) "Range: npt=now-\r\n" else ""
                     val resp = "RTSP/1.0 200 OK\r\n" +
                             "CSeq: $cSeq\r\n" +
                             "Session: $sessionId\r\n" +
+                            rangeLine +
                             "RTP-Info: url=track0;seq=$videoSeq,url=track1;seq=$audioSeq\r\n\r\n"
                     synchronized(writer) {
                         writer.write(resp.toByteArray())
@@ -346,8 +357,13 @@ class RtspServerManager(
             }
         }
 
-        // Shared epoch reference for video/audio synchronization (zero drift)
+        // Fallback Mode (v1.0.5 legacy): shared epoch reference
         @Volatile private var baseTimeMs: Long = -1L
+
+        // Low-Latency Mode: independent track baselines & keyframe gating
+        @Volatile private var videoBasePtsMs: Long = -1L
+        @Volatile private var audioBasePtsMs: Long = -1L
+        @Volatile private var hasReceivedFirstKeyFrame: Boolean = !isLowLatencyMode
 
         fun sendVideoNalu(nalu: ByteArray, ptsMs: Long, isLastNaluInAccessUnit: Boolean) {
             if (nalu.isEmpty()) return
@@ -359,12 +375,30 @@ class RtspServerManager(
 
             if (nalType == 0 || nalType > 23) return
 
-            // Hardware presentation timestamp synchronization (90,000 Hz clock = 90 ticks/ms)
-            if (baseTimeMs == -1L && ptsMs > 0) {
-                baseTimeMs = ptsMs
+            val videoTimestamp = if (isLowLatencyMode) {
+                // Keyframe gating: drop P-frames until first IDR arrives so OBS decodes immediately with 0 backlog
+                if (!hasReceivedFirstKeyFrame) {
+                    if (nalType == 5 || nalType == 7 || nalType == 8) {
+                        hasReceivedFirstKeyFrame = true
+                        Log.d(TAG, "First keyframe received for session $sessionId in Low-Latency mode")
+                    } else {
+                        return // Skip intermediate P-frame
+                    }
+                }
+
+                if (videoBasePtsMs == -1L && ptsMs > 0) {
+                    videoBasePtsMs = ptsMs
+                }
+                val elapsedMs = if (videoBasePtsMs != -1L) maxOf(0L, ptsMs - videoBasePtsMs) else 0L
+                (elapsedMs * 90L) and 0xFFFFFFFFL
+            } else {
+                // FALLBACK MODE (v1.0.5 legacy shared clock):
+                if (baseTimeMs == -1L && ptsMs > 0) {
+                    baseTimeMs = ptsMs
+                }
+                val elapsedMs = if (baseTimeMs != -1L) maxOf(0L, ptsMs - baseTimeMs) else 0L
+                (elapsedMs * 90L) and 0xFFFFFFFFL
             }
-            val elapsedMs = if (baseTimeMs != -1L) maxOf(0L, ptsMs - baseTimeMs) else 0L
-            val videoTimestamp = (elapsedMs * 90L) and 0xFFFFFFFFL
 
             if (nalu.size <= 1400) {
                 val rtpPacket = ByteArray(12 + nalu.size)
@@ -427,12 +461,20 @@ class RtspServerManager(
             if (rawAac.isEmpty()) return
             val ip = clientIp ?: return
 
-            // Audio presentation timestamp synchronization (48,000 Hz clock = 48 ticks/ms)
-            if (baseTimeMs == -1L && dtsMs > 0) {
-                baseTimeMs = dtsMs
+            val audioTimestamp = if (isLowLatencyMode) {
+                if (audioBasePtsMs == -1L && dtsMs > 0) {
+                    audioBasePtsMs = dtsMs
+                }
+                val elapsedMs = if (audioBasePtsMs != -1L) maxOf(0L, dtsMs - audioBasePtsMs) else 0L
+                (elapsedMs * 48L) and 0xFFFFFFFFL
+            } else {
+                // FALLBACK MODE (v1.0.5 legacy shared clock):
+                if (baseTimeMs == -1L && dtsMs > 0) {
+                    baseTimeMs = dtsMs
+                }
+                val elapsedMs = if (baseTimeMs != -1L) maxOf(0L, dtsMs - baseTimeMs) else 0L
+                (elapsedMs * 48L) and 0xFFFFFFFFL
             }
-            val elapsedMs = if (baseTimeMs != -1L) maxOf(0L, dtsMs - baseTimeMs) else 0L
-            val audioTimestamp = (elapsedMs * 48L) and 0xFFFFFFFFL
 
             val rtpPacket = ByteArray(12 + 4 + rawAac.size)
             rtpPacket[0] = 0x80.toByte()

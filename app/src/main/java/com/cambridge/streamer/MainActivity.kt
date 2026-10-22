@@ -19,6 +19,7 @@ import android.view.View
 import android.view.WindowManager
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
@@ -67,6 +68,7 @@ class MainActivity : AppCompatActivity() {
 
     private var currentMode = ProductionMode.BRIDGE_TO_OBS
     private var isStreaming = false
+    private var isLowLatencyMode = true
     private var captureWidth = 1920
     private var captureHeight = 1080
     private var isScreenPreviewForcedOn = false
@@ -174,6 +176,7 @@ class MainActivity : AppCompatActivity() {
             registerUsbReceiver()
             setupNetworkUrls()
             setupListeners()
+            updateLatencyModeButtonState()
             setupBondingEngine()
             setupUsbDetector()
             checkPermissionsAndStart()
@@ -438,6 +441,30 @@ class MainActivity : AppCompatActivity() {
             updateUvcSurfacesForCurrentMode()
             val stateText = if (isScreenPreviewForcedOn) "👁️ Preview ON" else "⚡ Preview OFF (Ultra Low Latency)"
             showToast(stateText)
+        }
+
+        // 1-Tap Latency Engine Mode Toggle (Zero-Lag Default vs Safe Fallback with User Consent)
+        binding.btnToggleLatencyMode.setOnClickListener {
+            if (isStreaming && currentMode == ProductionMode.BRIDGE_TO_OBS) {
+                val targetEngine = if (isLowLatencyMode) "Safe Fallback (v1.0.5)" else "Zero-Lag (<0.3s)"
+                AlertDialog.Builder(this)
+                    .setTitle("Switch Streaming Engine?")
+                    .setMessage("Switching to $targetEngine will momentarily restart the active RTSP stream. Proceed with switch?")
+                    .setPositiveButton("Switch & Restart") { _, _ ->
+                        isLowLatencyMode = !isLowLatencyMode
+                        updateLatencyModeButtonState()
+                        stopBroadcasting()
+                        startBroadcastingBridge()
+                        showToast("Switched to $targetEngine engine")
+                    }
+                    .setNegativeButton("Cancel", null)
+                    .show()
+            } else {
+                isLowLatencyMode = !isLowLatencyMode
+                updateLatencyModeButtonState()
+                val targetEngine = if (isLowLatencyMode) "⚡ Zero-Lag (<0.3s) Mode Active" else "🛡️ Safe Fallback Mode Active"
+                showToast(targetEngine)
+            }
         }
 
         // Bridge mode CTA
@@ -874,7 +901,15 @@ class MainActivity : AppCompatActivity() {
                 port = 8554,
                 getSpsPps = { Pair(videoEncoder?.sps, videoEncoder?.pps) },
                 getAudioConfig = { rtspAudioConfig },
-                onRequestKeyFrame = { videoEncoder?.requestSyncFrame() }
+                onRequestKeyFrame = { videoEncoder?.requestSyncFrame() },
+                isLowLatencyMode = isLowLatencyMode,
+                onError = { err ->
+                    runOnUiThread {
+                        if (isStreaming && isLowLatencyMode) {
+                            promptFallbackConsent(err.message ?: "RTSP transmission anomaly")
+                        }
+                    }
+                }
             )
             rtspServer?.start()
 
@@ -1053,6 +1088,32 @@ class MainActivity : AppCompatActivity() {
                 showToast("✅ CamBridge Pro is up to date (v$versionName)")
             }
         }
+    }
+
+    private fun updateLatencyModeButtonState() {
+        if (isLowLatencyMode) {
+            binding.btnToggleLatencyMode.text = "⚡ Zero-Lag (<0.3s)"
+            binding.btnToggleLatencyMode.setTextColor(Color.parseColor("#00E676"))
+        } else {
+            binding.btnToggleLatencyMode.text = "🛡️ Safe Fallback"
+            binding.btnToggleLatencyMode.setTextColor(Color.parseColor("#FFD54F"))
+        }
+    }
+
+    private fun promptFallbackConsent(reason: String) {
+        if (!isStreaming) return
+        AlertDialog.Builder(this)
+            .setTitle("Stream Anomaly Detected")
+            .setMessage("Zero-Lag stream reported: $reason\n\nWould you like to fallback to Safe Fallback Mode (v1.0.5)?")
+            .setPositiveButton("Fallback Now") { _, _ ->
+                isLowLatencyMode = false
+                updateLatencyModeButtonState()
+                stopBroadcasting()
+                startBroadcastingBridge()
+                showToast("Fell back to Safe Fallback Mode")
+            }
+            .setNegativeButton("Keep Current", null)
+            .show()
     }
 
     private fun showToast(msg: String) {

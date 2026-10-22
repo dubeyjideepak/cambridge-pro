@@ -1,6 +1,6 @@
 {
-  "versionCode": 6,
-  "versionName": "1.0.5",
-  "apkUrl": "https://github.com/dubeyjideepak/cambridge-pro/releases/download/v1.0.5/CamBridgePro.apk",
-  "changelog": "1-Tap Preview Toggle Pill + Uninterrupted Video Pipeline"
+  "versionCode": 7,
+  "versionName": "1.0.6",
+  "apkUrl": "https://github.com/dubeyjideepak/cambridge-pro/releases/download/v1.0.6/CamBridgePro.apk",
+  "changelog": "Ultra Low-Latency (<0.3s) Default Engine with Safe Fallback Mode"
 }

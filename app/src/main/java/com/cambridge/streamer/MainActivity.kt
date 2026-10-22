@@ -715,13 +715,12 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateUvcSurfacesForCurrentMode() {
         val engine = nativeUvcEngine ?: return
-        engine.clearSurfaces()
 
         binding.viewFinder.visibility = View.GONE
         binding.uvcViewFinder.visibility = View.VISIBLE
         binding.layoutHdmiStandby.visibility = View.GONE
 
-        // 1. Always attach phone screen preview so operator sees the live 4K feed
+        // 1. Always ensure phone screen preview is attached
         val holderSurface = binding.uvcViewFinder.holder.surface
         if (holderSurface.isValid) {
             engine.addSurface(holderSurface)

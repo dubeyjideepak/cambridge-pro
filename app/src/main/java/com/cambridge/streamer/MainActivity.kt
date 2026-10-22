@@ -828,6 +828,16 @@ class MainActivity : AppCompatActivity() {
                         binding.tvVideoTelemetry.setTextColor(Color.parseColor("#00E676"))
                     }
                 }
+                if (isStreaming && currentMode == ProductionMode.BRIDGE_TO_OBS && webServer != null) {
+                    try {
+                        val bmp = image.toBitmap()
+                        val stream = java.io.ByteArrayOutputStream()
+                        bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 80, stream)
+                        webServer?.pushFrame(stream.toByteArray())
+                    } catch (e: Exception) {
+                        Log.w(TAG, "HAL frame to JPEG push failed", e)
+                    }
+                }
                 image.close()
             }
             useCases.add(analysis)

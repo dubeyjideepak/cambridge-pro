@@ -376,6 +376,7 @@ class RtmpClient {
     ) {
         val out = output ?: return
         try {
+            val hasExtendedTs = timestampMs >= 0xFFFFFFL
             val header = buildChunkHeader(csId, msgType, msgStreamId, timestampMs, payload.size)
             out.write(header)
 
@@ -387,6 +388,13 @@ class RtmpClient {
                 if (offset < payload.size) {
                     // Format 3 continuation chunk (same CS, no header)
                     out.write((0xC0 or csId) and 0xFF)
+                    if (hasExtendedTs) {
+                        val extTs = timestampMs.toInt()
+                        out.write((extTs shr 24) and 0xFF)
+                        out.write((extTs shr 16) and 0xFF)
+                        out.write((extTs shr 8) and 0xFF)
+                        out.write(extTs and 0xFF)
+                    }
                 }
             }
             out.flush()
@@ -396,16 +404,17 @@ class RtmpClient {
         }
     }
 
-    /** Builds a Format-0 chunk header (full 11-byte message header). */
+    /** Builds a Format-0 chunk header (full 11-byte message header + optional extended timestamp). */
     private fun buildChunkHeader(
         csId: Int, msgType: Int, streamId: Int,
         timestamp: Long, payloadLen: Int
     ): ByteArray {
         val out = ByteArrayOutputStream()
+        val hasExtendedTs = timestamp >= 0xFFFFFFL
         // Basic header: format=0, cs_id (1 byte for cs_id 2-63)
         out.write(csId and 0x3F)
         // Timestamp (3 bytes big-endian)
-        val ts = timestamp.toInt()
+        val ts = if (hasExtendedTs) 0xFFFFFF else timestamp.toInt()
         out.write((ts shr 16) and 0xFF)
         out.write((ts shr 8) and 0xFF)
         out.write(ts and 0xFF)
@@ -420,6 +429,14 @@ class RtmpClient {
         out.write((streamId shr 8) and 0xFF)
         out.write((streamId shr 16) and 0xFF)
         out.write((streamId shr 24) and 0xFF)
+        // Extended timestamp (4 bytes big-endian) if timestamp >= 0xFFFFFF
+        if (hasExtendedTs) {
+            val extTs = timestamp.toInt()
+            out.write((extTs shr 24) and 0xFF)
+            out.write((extTs shr 16) and 0xFF)
+            out.write((extTs shr 8) and 0xFF)
+            out.write(extTs and 0xFF)
+        }
         return out.toByteArray()
     }
 

@@ -117,6 +117,7 @@ class NativeUvcCameraEngine(
                                     if (b0 == 0xFF && b1 == 0xD8) {
                                         val bytes = ByteArray(buffer.remaining())
                                         buffer.get(bytes)
+                                        buffer.rewind()
                                         callback(bytes)
                                     }
                                 }

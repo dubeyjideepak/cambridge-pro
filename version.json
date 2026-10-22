@@ -1,6 +1,6 @@
 {
-  "versionCode": 12,
-  "versionName": "1.1.1",
-  "apkUrl": "https://github.com/dubeyjideepak/cambridge-pro/releases/download/v1.1.1/CamBridgePro.apk",
-  "changelog": "Pure Zero-Lag USB-to-Web Bridge for OBS (RTSP removed, Zero Encoding/Decoding on phone, <50ms direct browser source)"
+  "versionCode": 13,
+  "versionName": "1.1.2",
+  "apkUrl": "https://github.com/dubeyjideepak/cambridge-pro/releases/download/v1.1.2/CamBridgePro.apk",
+  "changelog": "Code audit updates: RTMP extended timestamps for 4+ hour streams, CameraX HAL direct JPEG push fallback, and buffer rewind defense"
 }

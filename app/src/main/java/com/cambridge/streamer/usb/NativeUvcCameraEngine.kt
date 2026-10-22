@@ -93,9 +93,7 @@ class NativeUvcCameraEngine(
                     activeDevice = device
 
                     try {
-                        helper.startPreview()
-
-                        // Re-attach any surfaces that were queued
+                        // Attach all valid surfaces BEFORE starting preview to guarantee frame routing
                         synchronized(attachedSurfaces) {
                             for (surface in attachedSurfaces) {
                                 if (surface.isValid) {
@@ -104,6 +102,8 @@ class NativeUvcCameraEngine(
                                 }
                             }
                         }
+
+                        helper.startPreview()
 
                         val size = helper.previewSize
                         val w = size?.width ?: 1920
@@ -165,6 +165,7 @@ class NativeUvcCameraEngine(
             if (cameraHelper?.isCameraOpened == true && surface.isValid) {
                 try {
                     cameraHelper?.addSurface(surface, false)
+                    cameraHelper?.startPreview()
                     Log.d(TAG, "Surface added to running UVC pipeline: hash=${surface.hashCode()}")
                 } catch (e: Exception) {
                     Log.e(TAG, "Failed to add surface to UVC pipeline", e)

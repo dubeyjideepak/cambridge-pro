@@ -27,7 +27,8 @@ import java.util.concurrent.atomic.AtomicInteger
 class RtspServerManager(
     private val port: Int = 8554,
     private val getSpsPps: () -> Pair<ByteArray?, ByteArray?>,
-    private val getAudioConfig: () -> ByteArray? = { null }
+    private val getAudioConfig: () -> ByteArray? = { null },
+    private val onRequestKeyFrame: (() -> Unit)? = null
 ) {
     private val TAG = "RtspServer"
     private var serverSocket: ServerSocket? = null
@@ -50,7 +51,7 @@ class RtspServerManager(
                 while (isRunning) {
                     val socket = serverSocket?.accept() ?: break
                     val sessionId = sessionCounter.incrementAndGet().toString()
-                    val session = RtspClientSession(socket, sessionId, getSpsPps, getAudioConfig)
+                    val session = RtspClientSession(socket, sessionId, getSpsPps, getAudioConfig, onRequestKeyFrame)
                     clientSessions[sessionId] = session
                     Thread(session, "RtspClient-$sessionId").start()
                 }
@@ -150,7 +151,8 @@ class RtspServerManager(
         private val socket: Socket,
         val sessionId: String,
         private val getSpsPps: () -> Pair<ByteArray?, ByteArray?>,
-        private val getAudioConfig: () -> ByteArray?
+        private val getAudioConfig: () -> ByteArray?,
+        private val onRequestKeyFrame: (() -> Unit)? = null
     ) : Runnable {
         private val TAG = "RtspSession"
         private val reader = BufferedReader(InputStreamReader(socket.getInputStream()))
@@ -317,6 +319,7 @@ class RtspServerManager(
                 }
                 "PLAY" -> {
                     isPlaying = true
+                    onRequestKeyFrame?.invoke()
                     val resp = "RTSP/1.0 200 OK\r\n" +
                             "CSeq: $cSeq\r\n" +
                             "Session: $sessionId\r\n" +

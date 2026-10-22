@@ -190,13 +190,13 @@ class MainActivity : AppCompatActivity() {
     private fun initUvcSurfaceHolder() {
         binding.uvcViewFinder.holder.addCallback(object : SurfaceHolder.Callback {
             override fun surfaceCreated(holder: SurfaceHolder) {
-                Log.d(TAG, "uvcViewFinder surface created")
-                if (activeBackend == CameraBackend.NATIVE_UVC && currentMode == ProductionMode.IN_APP_STUDIO) {
-                    nativeUvcEngine?.addSurface(holder.surface)
-                }
+                Log.d(TAG, "uvcViewFinder surface created: ${holder.surface}")
+                nativeUvcEngine?.addSurface(holder.surface)
             }
 
-            override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {}
+            override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
+                Log.d(TAG, "uvcViewFinder surface changed: ${width}x${height}")
+            }
 
             override fun surfaceDestroyed(holder: SurfaceHolder) {
                 Log.d(TAG, "uvcViewFinder surface destroyed")
@@ -217,6 +217,8 @@ class MainActivity : AppCompatActivity() {
                     binding.tvUsbStatus.text = "✅ HDMI: ${device.productName ?: "4K Card"} (${width}x${height})"
                     binding.tvUsbStatus.setTextColor(Color.parseColor("#00E676"))
                     binding.layoutHdmiStandby.visibility = View.GONE
+                    binding.viewFinder.visibility = View.GONE
+                    binding.uvcViewFinder.visibility = View.VISIBLE
                     updateUvcSurfacesForCurrentMode()
                 }
             }
@@ -331,22 +333,26 @@ class MainActivity : AppCompatActivity() {
 
             currentMode = newMode
 
-            if (currentMode == ProductionMode.BRIDGE_TO_OBS) {
-                // Bridge: hide phone preview, overlays off (OBS handles graphics)
+            // Maintain live camera preview across mode changes
+            if (activeBackend == CameraBackend.NATIVE_UVC) {
+                binding.uvcViewFinder.visibility = View.VISIBLE
                 binding.viewFinder.visibility = View.GONE
+                binding.layoutHdmiStandby.visibility = View.GONE
+            } else if (activeBackend == CameraBackend.CAMERAX_EXTERNAL) {
+                binding.viewFinder.visibility = View.VISIBLE
                 binding.uvcViewFinder.visibility = View.GONE
+                binding.layoutHdmiStandby.visibility = View.GONE
+            } else {
+                binding.layoutHdmiStandby.visibility = View.VISIBLE
+            }
+
+            if (currentMode == ProductionMode.BRIDGE_TO_OBS) {
+                // Bridge: overlays off (OBS handles graphics)
                 binding.overlayView.compositor.isOverlayEnabled = false
                 binding.layoutBridgeMode.visibility = View.VISIBLE
                 binding.layoutStudioMode.visibility = View.GONE
             } else {
-                // Studio: show phone preview + overlays
-                if (activeBackend == CameraBackend.NATIVE_UVC) {
-                    binding.viewFinder.visibility = View.GONE
-                    binding.uvcViewFinder.visibility = View.VISIBLE
-                } else {
-                    binding.viewFinder.visibility = View.VISIBLE
-                    binding.uvcViewFinder.visibility = View.GONE
-                }
+                // Studio: overlays enabled
                 binding.overlayView.compositor.isOverlayEnabled = binding.switchOverlays.isChecked
                 binding.layoutBridgeMode.visibility = View.GONE
                 binding.layoutStudioMode.visibility = View.VISIBLE
@@ -527,38 +533,32 @@ class MainActivity : AppCompatActivity() {
             provider.unbindAll()
             val useCases = mutableListOf<androidx.camera.core.UseCase>()
 
-            when (mode) {
-                ProductionMode.BRIDGE_TO_OBS -> {
-                    val encoderPreview = Preview.Builder()
-                        .setTargetResolution(android.util.Size(1920, 1080))
-                        .build()
+            val screenPreview = Preview.Builder()
+                .setTargetResolution(android.util.Size(1920, 1080))
+                .build()
+                .also { it.setSurfaceProvider(binding.viewFinder.surfaceProvider) }
 
-                    encoderPreview.setSurfaceProvider { request: SurfaceRequest ->
-                        val encoderSurface = videoEncoder?.inputSurface
-                        if (encoderSurface != null && encoderSurface.isValid) {
-                            request.provideSurface(encoderSurface, cameraExecutor) { result ->
-                                Log.d(TAG, "Encoder surface released: ${result.resultCode}")
-                            }
-                        } else {
-                            request.willNotProvideSurface()
+            binding.viewFinder.visibility = View.VISIBLE
+            binding.uvcViewFinder.visibility = View.GONE
+            binding.layoutHdmiStandby.visibility = View.GONE
+            useCases.add(screenPreview)
+
+            val encoderSurface = videoEncoder?.inputSurface
+            if (isStreaming && encoderSurface != null && encoderSurface.isValid) {
+                val encoderPreview = Preview.Builder()
+                    .setTargetResolution(android.util.Size(1920, 1080))
+                    .build()
+
+                encoderPreview.setSurfaceProvider { request: SurfaceRequest ->
+                    if (encoderSurface.isValid) {
+                        request.provideSurface(encoderSurface, cameraExecutor) { result ->
+                            Log.d(TAG, "Encoder surface released: ${result.resultCode}")
                         }
+                    } else {
+                        request.willNotProvideSurface()
                     }
-
-                    binding.viewFinder.visibility = View.GONE
-                    binding.layoutHdmiStandby.visibility = View.GONE
-                    useCases.add(encoderPreview)
                 }
-
-                ProductionMode.IN_APP_STUDIO -> {
-                    val screenPreview = Preview.Builder()
-                        .setTargetResolution(android.util.Size(1920, 1080))
-                        .build()
-                        .also { it.setSurfaceProvider(binding.viewFinder.surfaceProvider) }
-
-                    binding.viewFinder.visibility = View.VISIBLE
-                    binding.layoutHdmiStandby.visibility = View.GONE
-                    useCases.add(screenPreview)
-                }
+                useCases.add(encoderPreview)
             }
 
             try {
@@ -583,6 +583,7 @@ class MainActivity : AppCompatActivity() {
             if (nativeUvcEngine?.isCameraOpened() == true) {
                 activeBackend = CameraBackend.NATIVE_UVC
                 binding.layoutHdmiStandby.visibility = View.GONE
+                binding.uvcViewFinder.visibility = View.VISIBLE
                 updateUvcSurfacesForCurrentMode()
             } else {
                 // Standby: Wait for capture card. Phone internal cameras are NEVER activated.
@@ -601,32 +602,22 @@ class MainActivity : AppCompatActivity() {
         val engine = nativeUvcEngine ?: return
         engine.clearSurfaces()
 
-        when (currentMode) {
-            ProductionMode.BRIDGE_TO_OBS -> {
-                binding.viewFinder.visibility = View.GONE
-                binding.uvcViewFinder.visibility = View.GONE
-                binding.layoutHdmiStandby.visibility = View.GONE
+        binding.viewFinder.visibility = View.GONE
+        binding.uvcViewFinder.visibility = View.VISIBLE
+        binding.layoutHdmiStandby.visibility = View.GONE
 
-                val encoderSurface = videoEncoder?.inputSurface
-                if (encoderSurface != null && encoderSurface.isValid) {
-                    engine.addSurface(encoderSurface)
-                }
-            }
-            ProductionMode.IN_APP_STUDIO -> {
-                binding.viewFinder.visibility = View.GONE
-                binding.uvcViewFinder.visibility = View.VISIBLE
-                binding.layoutHdmiStandby.visibility = View.GONE
+        // 1. Always attach phone screen preview so operator sees the live 4K feed
+        val holderSurface = binding.uvcViewFinder.holder.surface
+        if (holderSurface.isValid) {
+            engine.addSurface(holderSurface)
+            Log.d(TAG, "Attached screen viewfinder surface to UVC engine")
+        }
 
-                val holderSurface = binding.uvcViewFinder.holder.surface
-                if (holderSurface.isValid) {
-                    engine.addSurface(holderSurface)
-                }
-
-                val encoderSurface = videoEncoder?.inputSurface
-                if (encoderSurface != null && encoderSurface.isValid) {
-                    engine.addSurface(encoderSurface)
-                }
-            }
+        // 2. Attach video encoder input surface when broadcasting (OBS Bridge or Studio Live)
+        val encoderSurface = videoEncoder?.inputSurface
+        if (isStreaming && encoderSurface != null && encoderSurface.isValid) {
+            engine.addSurface(encoderSurface)
+            Log.d(TAG, "Attached encoder input surface to UVC engine for streaming")
         }
     }
 
@@ -747,13 +738,13 @@ class MainActivity : AppCompatActivity() {
             rtspServer = RtspServerManager(
                 port = 8554,
                 getSpsPps = { Pair(videoEncoder?.sps, videoEncoder?.pps) },
-                getAudioConfig = { rtspAudioConfig }
+                getAudioConfig = { rtspAudioConfig },
+                onRequestKeyFrame = { videoEncoder?.requestSyncFrame() }
             )
             rtspServer?.start()
 
             // Step 5: Web browser monitor
             webServer = WebMonitorServer(port = 8080) {
-                // In bridge mode: no PreviewView bitmap, return null (web monitor shows placeholder)
                 null
             }
             webServer?.isStreaming = true
@@ -768,7 +759,7 @@ class MainActivity : AppCompatActivity() {
         binding.btnToggleBridgeStream.setBackgroundResource(R.drawable.bg_cta_red)
         binding.btnToggleBridgeStream.setTextColor(Color.WHITE)
         updateLiveBadge(true, "🔴 LIVE → OBS")
-        showToast("Broadcasting to OBS Studio (no phone preview)")
+        showToast("Broadcasting to OBS Studio (Live Preview Active)")
     }
 
     /**

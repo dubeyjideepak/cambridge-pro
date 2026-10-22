@@ -2,4 +2,6 @@
 <resources>
     <!-- USB Video Class (UVC) capture cards (Class 14 = 0x0E) -->
     <usb-device class="14" />
+    <!-- Miscellaneous / Interface Association Descriptor (IAD) capture cards (Class 239 = 0xEF) -->
+    <usb-device class="239" />
 </resources>

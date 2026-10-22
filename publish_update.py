@@ -73,6 +73,11 @@ def main():
         print("Error: APK not found after build")
         sys.exit(1)
 
+    import shutil
+    local_root_apk = "/Users/deepakdubey/Downloads/tealogy/CamBridgePro.apk"
+    shutil.copy2(APK_PATH, local_root_apk)
+    print(f"📁 Updated local copy at {local_root_apk}")
+
     tag = f"v{new_name}"
     apk_url = f"https://github.com/dubeyjideepak/cambridge-pro/releases/download/{tag}/CamBridgePro.apk"
 

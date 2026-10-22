@@ -41,19 +41,8 @@ class UsbDeviceManager(
                     val name = device.productName ?: "USB HDMI Capture Card"
                     Log.d(TAG, "UVC Device Found: $name")
 
-                    // ── KEY FIX: Request USB permission before claiming interface ──
-                    if (usbManager.hasPermission(device)) {
-                        onDeviceStateChanged(true, name)
-                    } else {
-                        Log.d(TAG, "Requesting USB permission for $name")
-                        val permissionIntent = PendingIntent.getBroadcast(
-                            context, 0,
-                            Intent(USB_PERMISSION_ACTION).setPackage(context.packageName),
-                            PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-                        )
-                        usbManager.requestPermission(device, permissionIntent)
-                        // Status will be updated via BroadcastReceiver in MainActivity
-                    }
+                    // Notify device found. NativeUvcCameraEngine (CameraHelper) owns the USB permission lifecycle.
+                    onDeviceStateChanged(true, name)
                     return true
                 }
             }

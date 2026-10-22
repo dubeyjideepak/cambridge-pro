@@ -1,33 +1,38 @@
 package com.cambridge.streamer.stream
 
+import android.content.Context
 import android.util.Log
 import com.cambridge.streamer.audio.AudioCapturePipeline
+import java.util.concurrent.ConcurrentHashMap
 
 /**
- * Production RTMP Stream Manager
- *
- * Orchestrates the full publish pipeline:
- *   HardwareVideoEncoder NALUs
- *     → RtmpClient (FLV packaging + RTMP chunking → YouTube / Facebook / Instagram)
- *   AudioCapturePipeline AAC frames
- *     → RtmpClient (FLV audio tag → RTMP)
- *
- * Usage:
- *   1. Call [startLiveStream] with the full RTMP URL and initial SPS/PPS bytes.
- *   2. Once [onConnected] fires, call [pushVideoFrame] for every encoder NALU.
- *   3. Call [stopLiveStream] to tear down.
- *
- * Supported platforms:
- *   YouTube Live  →  rtmp://a.rtmp.youtube.com/live2/{key}
- *   Facebook Live →  rtmp://live-api-s.facebook.com:80/rtmp/{key}
- *   Instagram     →  rtmp://edgetee-upload-{dc}.facebook.com:80/rtmp/{key}
- *   Custom RTMP   →  any rtmp:// endpoint
+ * Data structure representing an individual streaming endpoint.
  */
-class RtmpStreamManager(private val context: android.content.Context? = null) {
+data class LiveDestination(
+    val id: String,          // e.g. "youtube", "facebook", "instagram", "custom"
+    val label: String,       // e.g. "YouTube Live", "Facebook Live", "Instagram Live"
+    val rtmpUrl: String,
+    val isEnabled: Boolean = true
+)
+
+/**
+ * Production Multi-Platform RTMP Stream Manager
+ *
+ * Encodes once via Qualcomm hardware encoder and fans out identical H.264 NALUs
+ * and AAC audio frames across multiple live platforms simultaneously:
+ * - YouTube Live (RTMP port 1935)
+ * - Facebook Live (RTMPS port 443 TLS)
+ * - Instagram Live (RTMPS port 443 TLS via Live Producer)
+ * - Custom RTMP server
+ */
+class RtmpStreamManager(private val context: Context? = null) {
 
     private val TAG = "RtmpStreamManager"
 
-    private val rtmpClient = RtmpClient()
+    private val clients = ConcurrentHashMap<String, RtmpClient>()
+    private val activeDestinations = ConcurrentHashMap<String, LiveDestination>()
+    private val connectedStates = ConcurrentHashMap<String, Boolean>()
+
     private var audioPipeline: AudioCapturePipeline? = null
 
     @Volatile var isLive: Boolean = false
@@ -36,96 +41,111 @@ class RtmpStreamManager(private val context: android.content.Context? = null) {
     // Cached SPS/PPS — may arrive slightly before or after connect ACK
     @Volatile private var pendingSps: ByteArray? = null
     @Volatile private var pendingPps: ByteArray? = null
-    @Volatile private var avcHeaderQueued = false
+    @Volatile private var cachedAudioSpecificConfig: ByteArray? = null
+    private val avcHeadersSent = ConcurrentHashMap<String, Boolean>()
 
-    // ─── Public API ────────────────────────────────────────────────────────────
-
-    /**
-     * Connect to the RTMP server and begin publishing.
-     *
-     * @param rtmpUrl Full RTMP URL including stream key
-     *                e.g. "rtmp://a.rtmp.youtube.com/live2/xxxx-xxxx-xxxx"
-     * @param sps     SPS NAL unit (Annex-B, as from MediaCodec csd-0)
-     * @param pps     PPS NAL unit (Annex-B, as from MediaCodec csd-1)
-     * @param onConnected Called on the RTMP thread once publish is confirmed
-     * @param onError     Called on error with a human-readable reason string
-     */
-    fun startLiveStream(
-        rtmpUrl: String,
-        sps: ByteArray?,
-        pps: ByteArray?,
-        onConnected: () -> Unit,
-        onError: (String) -> Unit
-    ) {
-        if (isLive) {
-            Log.w(TAG, "startLiveStream called while already live — ignoring")
-            return
-        }
-
-        pendingSps = sps
-        pendingPps = pps
-        avcHeaderQueued = false
-
-        Log.d(TAG, "Connecting RTMP: ${rtmpUrl.take(50)}…")
-
-        rtmpClient.connect(rtmpUrl, object : RtmpClient.ConnectChecker {
-
-            override fun onConnectionSuccess() {
-                isLive = true
-                Log.d(TAG, "RTMP publish confirmed — starting A/V feed")
-
-                // Send AVC decoder configuration record (SPS + PPS)
-                val spsNow = pendingSps
-                val ppsNow = pendingPps
-                if (spsNow != null && ppsNow != null) {
-                    rtmpClient.sendVideoSequenceHeader(spsNow, ppsNow)
-                    avcHeaderQueued = true
-                } else {
-                    Log.w(TAG, "SPS/PPS not ready at connect — will send on first keyframe")
-                }
-
-                // Start audio capture + send AAC sequence header
-                startAudioPipeline()
-
-                onConnected()
-            }
-
-            override fun onConnectionFailed(reason: String) {
-                isLive = false
-                Log.e(TAG, "RTMP connection failed: $reason")
-                onError(reason)
-            }
-
-            override fun onDisconnected() {
-                isLive = false
-                Log.w(TAG, "RTMP disconnected")
-                audioPipeline?.stop()
-                audioPipeline = null
-                onError("Connection lost")
-            }
-        })
-    }
-
-    /**
-     * Push a H.264 NALU from the encoder into the RTMP stream.
-     *
-     * If we haven't sent the AVC sequence header yet (rare race: SPS/PPS
-     * arrived after [startLiveStream] was called), we send it now on the first keyframe.
-     *
-     * @param h264Nalu   Raw NALU bytes from MediaCodec (Annex-B with start code)
-     * @param isKeyFrame true for IDR frames
-     * @param dtsMs      Decode timestamp in milliseconds (System.currentTimeMillis() basis)
-     */
     // Stream clock reference & Lip-sync synchronization
     @Volatile private var streamStartTimeMs: Long = 0L
 
     /**
      * Audio delay compensation offset in milliseconds.
-     * HDMI capture cards buffer and process video with ~80ms-120ms latency.
-     * Defaulting to +100ms ensures perfect lip-sync out of the box.
+     * Default +100ms compensates for HDMI capture card video pipeline latency.
      */
     @Volatile var audioDelayOffsetMs: Long = 100L
 
+    // ─── Public API ────────────────────────────────────────────────────────────
+
+    /**
+     * Connect to multiple RTMP/RTMPS destinations in parallel and begin publishing.
+     */
+    fun startMultiStream(
+        destinations: List<LiveDestination>,
+        sps: ByteArray?,
+        pps: ByteArray?,
+        onTargetConnected: (id: String, label: String) -> Unit,
+        onTargetFailed: (id: String, label: String, error: String) -> Unit,
+        onAllDisconnected: () -> Unit
+    ) {
+        val enabledDests = destinations.filter { it.isEnabled && it.rtmpUrl.isNotBlank() }
+        if (enabledDests.isEmpty()) {
+            Log.w(TAG, "No enabled RTMP destinations provided")
+            onAllDisconnected()
+            return
+        }
+
+        stopLiveStream() // Clean up any active connections
+
+        pendingSps = sps
+        pendingPps = pps
+        streamStartTimeMs = 0L
+        isLive = true
+
+        for (dest in enabledDests) {
+            activeDestinations[dest.id] = dest
+            val client = RtmpClient()
+            clients[dest.id] = client
+
+            Log.d(TAG, "Connecting to [${dest.label}]: ${dest.rtmpUrl.take(45)}…")
+
+            client.connect(dest.rtmpUrl, object : RtmpClient.ConnectChecker {
+                override fun onConnectionSuccess() {
+                    Log.d(TAG, "RTMP connection established to [${dest.label}]")
+                    connectedStates[dest.id] = true
+
+                    // Send AVC sequence header
+                    val spsNow = pendingSps
+                    val ppsNow = pendingPps
+                    if (spsNow != null && ppsNow != null) {
+                        client.sendVideoSequenceHeader(spsNow, ppsNow)
+                        avcHeadersSent[dest.id] = true
+                        Log.d(TAG, "Sent AVC sequence header to [${dest.label}]")
+                    }
+
+                    // Start audio capture once across all clients
+                    synchronized(this@RtmpStreamManager) {
+                        if (audioPipeline == null) {
+                            startAudioPipeline()
+                        } else {
+                            // If audio pipeline is already running, immediately send cached ASC to this client
+                            cachedAudioSpecificConfig?.let { asc ->
+                                client.sendAudioSequenceHeader(asc)
+                            }
+                        }
+                    }
+
+                    onTargetConnected(dest.id, dest.label)
+                }
+
+                override fun onConnectionFailed(reason: String) {
+                    Log.e(TAG, "RTMP connection failed for [${dest.label}]: $reason")
+                    connectedStates[dest.id] = false
+                    onTargetFailed(dest.id, dest.label, reason)
+                    checkAllDisconnected(onAllDisconnected)
+                }
+
+                override fun onDisconnected() {
+                    Log.w(TAG, "RTMP disconnected from [${dest.label}]")
+                    connectedStates[dest.id] = false
+                    onTargetFailed(dest.id, dest.label, "Connection lost")
+                    checkAllDisconnected(onAllDisconnected)
+                }
+            })
+        }
+    }
+
+    private fun checkAllDisconnected(onAllDisconnected: () -> Unit) {
+        val anyLive = connectedStates.values.any { it }
+        if (!anyLive && isLive) {
+            isLive = false
+            audioPipeline?.stop()
+            audioPipeline = null
+            onAllDisconnected()
+        }
+    }
+
+    /**
+     * Push a H.264 NALU from the hardware encoder to all active live platforms.
+     */
     fun pushVideoFrame(h264Nalu: ByteArray, isKeyFrame: Boolean, ptsMs: Long = -1L) {
         if (!isLive) return
 
@@ -133,32 +153,35 @@ class RtmpStreamManager(private val context: android.content.Context? = null) {
         if (streamStartTimeMs == 0L) {
             streamStartTimeMs = currentClockMs
         }
+        val relativeVideoDts = maxOf(0L, currentClockMs - streamStartTimeMs)
 
-        // Late-arriving SPS/PPS: send on first keyframe
-        if (!avcHeaderQueued && isKeyFrame) {
-            val spsNow = pendingSps
-            val ppsNow = pendingPps
-            if (spsNow != null && ppsNow != null) {
-                rtmpClient.sendVideoSequenceHeader(spsNow, ppsNow)
-                avcHeaderQueued = true
-                Log.d(TAG, "AVC sequence header sent on first keyframe (late SPS/PPS)")
+        val spsNow = pendingSps
+        val ppsNow = pendingPps
+
+        for ((id, client) in clients) {
+            if (connectedStates[id] == true) {
+                // Send late-arriving SPS/PPS on first keyframe if not sent yet
+                if (avcHeadersSent[id] != true && isKeyFrame && spsNow != null && ppsNow != null) {
+                    client.sendVideoSequenceHeader(spsNow, ppsNow)
+                    avcHeadersSent[id] = true
+                }
+                client.sendVideoNalu(h264Nalu, isKeyFrame, relativeVideoDts)
             }
         }
-
-        val relativeVideoDts = maxOf(0L, currentClockMs - streamStartTimeMs)
-        rtmpClient.sendVideoNalu(h264Nalu, isKeyFrame, relativeVideoDts)
     }
 
     /**
-     * Update SPS/PPS mid-stream (e.g. if encoder reconfigures resolution).
-     * Will send a new AVC sequence header on the next keyframe.
+     * Update SPS/PPS mid-stream (e.g. if resolution reconfigures).
      */
     fun updateSpsPps(sps: ByteArray, pps: ByteArray) {
         pendingSps = sps
         pendingPps = pps
         if (isLive) {
-            rtmpClient.sendVideoSequenceHeader(sps, pps)
-            Log.d(TAG, "AVC sequence header refreshed (resolution change)")
+            for ((id, client) in clients) {
+                if (connectedStates[id] == true) {
+                    client.sendVideoSequenceHeader(sps, pps)
+                }
+            }
         }
     }
 
@@ -167,11 +190,21 @@ class RtmpStreamManager(private val context: android.content.Context? = null) {
         streamStartTimeMs = 0L
         audioPipeline?.stop()
         audioPipeline = null
-        rtmpClient.disconnect()
+
+        for ((_, client) in clients) {
+            try {
+                client.disconnect()
+            } catch (ignored: Exception) {}
+        }
+
+        clients.clear()
+        activeDestinations.clear()
+        connectedStates.clear()
+        avcHeadersSent.clear()
         pendingSps = null
         pendingPps = null
-        avcHeaderQueued = false
-        Log.d(TAG, "RTMP stream stopped")
+        cachedAudioSpecificConfig = null
+        Log.d(TAG, "Multi-platform live stream stopped")
     }
 
     // ─── Audio Pipeline ────────────────────────────────────────────────────────
@@ -183,9 +216,13 @@ class RtmpStreamManager(private val context: android.content.Context? = null) {
             channelConfig = android.media.AudioFormat.CHANNEL_IN_MONO,
             bitrate = 128_000,
             onAudioSpecificConfig = { asc ->
-                // Send AAC sequence header (AudioSpecificConfig from csd-0)
-                rtmpClient.sendAudioSequenceHeader(asc)
-                Log.d(TAG, "AAC sequence header sent")
+                cachedAudioSpecificConfig = asc
+                for ((id, client) in clients) {
+                    if (connectedStates[id] == true) {
+                        client.sendAudioSequenceHeader(asc)
+                    }
+                }
+                Log.d(TAG, "AAC sequence header sent to all connected clients")
             },
             onAudioFrame = { rawAac, dtsMs ->
                 if (isLive) {
@@ -195,10 +232,33 @@ class RtmpStreamManager(private val context: android.content.Context? = null) {
                     }
                     val elapsedMs = maxOf(0L, currentClockMs - streamStartTimeMs)
                     val synchronizedAudioDts = maxOf(0L, elapsedMs + audioDelayOffsetMs)
-                    rtmpClient.sendAudioFrame(rawAac, synchronizedAudioDts)
+
+                    for ((id, client) in clients) {
+                        if (connectedStates[id] == true) {
+                            client.sendAudioFrame(rawAac, synchronizedAudioDts)
+                        }
+                    }
                 }
             }
         )
         audioPipeline?.start()
+    }
+
+    // Backward-compatibility single stream entry point
+    fun startLiveStream(
+        rtmpUrl: String,
+        sps: ByteArray?,
+        pps: ByteArray?,
+        onConnected: () -> Unit,
+        onError: (String) -> Unit
+    ) {
+        startMultiStream(
+            destinations = listOf(LiveDestination("single", "Live", rtmpUrl, true)),
+            sps = sps,
+            pps = pps,
+            onTargetConnected = { _, _ -> onConnected() },
+            onTargetFailed = { _, _, err -> onError(err) },
+            onAllDisconnected = { onError("Connection failed") }
+        )
     }
 }

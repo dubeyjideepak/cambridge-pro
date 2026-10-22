@@ -1,11 +1,29 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="bg_dark">#0F1115</color>
-    <color name="card_dark">#1A1D24</color>
-    <color name="card_stroke">#2D323E</color>
-    <color name="accent_primary">#E53935</color>
+    <!-- Emerald Luxury Dark Palette -->
+    <color name="bg_dark">#06120E</color>
+    <color name="bg_emerald_dark">#06120E</color>
+    <color name="bg_emerald_surface">#0B1B15</color>
+    <color name="card_dark">#0F241C</color>
+    <color name="card_stroke">#3310B981</color>
+    
+    <!-- Emerald Accents -->
+    <color name="emerald_primary">#00E676</color>
+    <color name="emerald_light">#10B981</color>
+    <color name="emerald_dark">#059669</color>
+    <color name="emerald_accent">#34D399</color>
+    
+    <!-- Gold / Saffron Divine Accents -->
+    <color name="gold_accent">#F59E0B</color>
+    <color name="gold_light">#FDE68A</color>
+    <color name="saffron_divine">#E65100</color>
+    
+    <!-- Broadcast Core Colors -->
+    <color name="accent_primary">#00E676</color>
+    <color name="live_red">#E53935</color>
     <color name="live_green">#00E676</color>
     <color name="text_primary">#FFFFFF</color>
-    <color name="text_secondary">#9E9E9E</color>
-    <color name="text_highlight">#64B5F6</color>
+    <color name="text_secondary">#A7F3D0</color>
+    <color name="text_muted">#6B7280</color>
+    <color name="text_highlight">#34D399</color>
 </resources>

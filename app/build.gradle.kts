@@ -11,8 +11,8 @@ android {
         applicationId = "com.cambridge.streamer"
         minSdk = 26
         targetSdk = 34
-        versionCode = 10
-        versionName = "1.0.9"
+        versionCode = 11
+        versionName = "1.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -57,6 +57,9 @@ dependencies {
 
     // Lightweight embedded HTTP server for live laptop browser preview
     implementation("org.nanohttpd:nanohttpd:2.3.1")
+
+    // Embedded QR Code Generation (for dynamic UPI QR codes)
+    implementation("com.google.zxing:core:3.5.3")
 
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")

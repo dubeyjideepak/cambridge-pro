@@ -32,6 +32,7 @@ import com.cambridge.streamer.bonding.NetworkBondingEngine
 import com.cambridge.streamer.databinding.ActivityMainBinding
 import com.cambridge.streamer.encoder.HardwareVideoEncoder
 import com.cambridge.streamer.service.StreamingForegroundService
+import com.cambridge.streamer.stream.LiveDestination
 import com.cambridge.streamer.stream.RtmpStreamManager
 import com.cambridge.streamer.stream.RtspServerManager
 import com.cambridge.streamer.stream.WebMonitorServer
@@ -39,6 +40,11 @@ import com.cambridge.streamer.update.AppUpdateManager
 import com.cambridge.streamer.usb.NativeUvcCameraEngine
 import com.cambridge.streamer.usb.UsbDeviceManager
 import com.cambridge.streamer.utils.NetworkUtils
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
@@ -90,6 +96,49 @@ class MainActivity : AppCompatActivity() {
                 }
             } catch (e: Exception) {
                 showToast("Failed to load image: ${e.message}")
+            }
+        }
+    }
+
+    // Gallery Picker for Custom UPI QR Code
+    private val qrPickerLauncher = registerForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri != null) {
+            try {
+                contentResolver.openInputStream(uri)?.use { stream ->
+                    val bitmap = BitmapFactory.decodeStream(stream)
+                    binding.overlayView.compositor.upiQrBitmap = bitmap
+                    binding.overlayView.compositor.isQrVisible = true
+                    binding.switchQrVisibility.isChecked = true
+                    binding.overlayView.invalidate()
+                    showToast("Custom UPI QR loaded & visible!")
+                }
+            } catch (e: Exception) {
+                showToast("Failed to load QR image: ${e.message}")
+            }
+        }
+    }
+
+    private var qrTimerJob: Job? = null
+
+    private fun updateQrAutoTimer(enabled: Boolean) {
+        qrTimerJob?.cancel()
+        if (!enabled) return
+
+        qrTimerJob = lifecycleScope.launch {
+            while (isActive) {
+                // Show QR for 2 minutes (120s)
+                binding.overlayView.compositor.isQrVisible = true
+                binding.switchQrVisibility.isChecked = true
+                binding.overlayView.invalidate()
+                delay(120_000L)
+
+                // Hide QR for 8 minutes (480s)
+                binding.overlayView.compositor.isQrVisible = false
+                binding.switchQrVisibility.isChecked = false
+                binding.overlayView.invalidate()
+                delay(480_000L)
             }
         }
     }
@@ -176,6 +225,7 @@ class MainActivity : AppCompatActivity() {
             registerUsbReceiver()
             setupNetworkUrls()
             setupListeners()
+            loadSavedPreferences()
             updateLatencyModeButtonState()
             setupBondingEngine()
             setupUsbDetector()
@@ -189,6 +239,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        qrTimerJob?.cancel()
         stopBroadcasting()
         nativeUvcEngine?.stop()
         bridgeAudioPipeline?.stop()
@@ -480,19 +531,65 @@ class MainActivity : AppCompatActivity() {
             if (isStreaming) stopBroadcasting() else startBroadcastingBridge()
         }
 
-        // Studio: Apply overlays
+        // Studio: Apply overlays & Ticker
         binding.btnUpdateOverlays.setOnClickListener {
-            binding.etVyasName.text.toString().trim().takeIf { it.isNotEmpty() }?.let {
-                binding.overlayView.compositor.vyasJiName = it
-            }
-            binding.etTickerText.text.toString().trim().takeIf { it.isNotEmpty() }?.let {
-                binding.overlayView.compositor.tickerText = it
-            }
+            val katha = binding.etKathaTitle.text.toString().trim()
+            if (katha.isNotEmpty()) binding.overlayView.compositor.kathaTitle = katha
+
+            val vyas = binding.etVyasName.text.toString().trim()
+            if (vyas.isNotEmpty()) binding.overlayView.compositor.vyasJiName = vyas
+
+            val day = binding.etDayText.text.toString().trim()
+            if (day.isNotEmpty()) binding.overlayView.compositor.dayText = day
+
+            val ticker = binding.etTickerText.text.toString().trim()
+            if (ticker.isNotEmpty()) binding.overlayView.compositor.setCustomTicker(ticker)
+
+            saveOverlayPreferences()
             binding.overlayView.invalidate()
             showToast("Overlays & Ticker Updated!")
         }
 
-        // Jhanki Presets & Custom Gallery Photo Picker
+        binding.switchNameplate.setOnCheckedChangeListener { _, isChecked ->
+            binding.overlayView.compositor.isNameplateVisible = isChecked
+            binding.overlayView.invalidate()
+        }
+
+        binding.switchTicker.setOnCheckedChangeListener { _, isChecked ->
+            binding.overlayView.compositor.isTickerVisible = isChecked
+            binding.overlayView.invalidate()
+        }
+
+        // Dynamic UPI QR Code
+        binding.btnGenerateQr.setOnClickListener {
+            val upiId = binding.etUpiId.text.toString().trim()
+            if (upiId.isEmpty()) {
+                showToast("कृपया UPI ID दर्ज करें (उदा: katha@sbi)")
+                return@setOnClickListener
+            }
+            binding.overlayView.compositor.generateUpiQr(upiId, "Katha Sewa")
+            binding.switchQrVisibility.isChecked = true
+            savePref("saved_upi_id", upiId)
+            binding.overlayView.invalidate()
+            showToast("UPI QR कोड तैयार एवं स्क्रीन पर सक्रिय!")
+        }
+
+        binding.btnPickQrImage.setOnClickListener {
+            qrPickerLauncher.launch("image/*")
+        }
+
+        binding.switchQrVisibility.setOnCheckedChangeListener { _, isChecked ->
+            binding.overlayView.compositor.isQrVisible = isChecked
+            binding.overlayView.invalidate()
+        }
+
+        binding.switchQrAutoTimer.setOnCheckedChangeListener { _, isChecked ->
+            updateQrAutoTimer(isChecked)
+            val msg = if (isChecked) "ऑटो-टाइमर सक्रिय (2 मिनट दिखेगा, 8 मिनट छुपेगा)" else "ऑटो-टाइमर बंद"
+            showToast(msg)
+        }
+
+        // Jhanki Presets & Custom Gallery Photo Picker (1-Tap Operator Desk)
         binding.btnJhankiMakhan.setOnClickListener {
             val bmp = BitmapFactory.decodeResource(resources, R.drawable.jhanki_makhan_chori)
             binding.overlayView.compositor.jhankiBitmap = bmp
@@ -517,6 +614,22 @@ class MainActivity : AppCompatActivity() {
             imagePickerLauncher.launch("image/*")
         }
 
+        binding.btnHideJhanki.setOnClickListener {
+            binding.overlayView.compositor.isJhankiVisible = false
+            binding.switchJhankiVisibility.isChecked = false
+            binding.overlayView.invalidate()
+            showToast("झांकी हटाई गई (फुल स्क्रीन कैमरा)")
+        }
+
+        binding.btnUpdateJhankiCaption.setOnClickListener {
+            val cap = binding.etJhankiCaption.text.toString().trim()
+            if (cap.isNotEmpty()) {
+                binding.overlayView.compositor.jhankiTitle = cap
+                binding.overlayView.invalidate()
+                showToast("झांकी शीर्षक अपडेट किया गया!")
+            }
+        }
+
         binding.switchJhankiVisibility.setOnCheckedChangeListener { _, isChecked ->
             binding.overlayView.compositor.isJhankiVisible = isChecked
             binding.overlayView.invalidate()
@@ -533,17 +646,43 @@ class MainActivity : AppCompatActivity() {
             showToast("A/V Sync Offset: +${delay}ms (HDMI card latency compensation)")
         }
 
-        // Studio: Go Live
+        // Studio: Simultaneous Multi-Broadcaster Go Live
         binding.btnToggleStudioLive.setOnClickListener {
             if (isStreaming) {
                 stopBroadcasting()
             } else {
-                val key = binding.etStreamKey.text.toString().trim()
-                if (key.isEmpty()) {
-                    showToast("Please paste YouTube / Facebook Stream Key")
+                val destinations = mutableListOf<LiveDestination>()
+                val ytKey = binding.etYoutubeKey.text.toString().trim()
+                val fbKey = binding.etFacebookKey.text.toString().trim()
+                val igKey = binding.etInstagramKey.text.toString().trim()
+
+                // Persist inputs
+                savePref("yt_key", ytKey)
+                savePref("fb_key", fbKey)
+                savePref("ig_key", igKey)
+                savePref("yt_checked", binding.cbYoutube.isChecked)
+                savePref("fb_checked", binding.cbFacebook.isChecked)
+                savePref("ig_checked", binding.cbInstagram.isChecked)
+
+                if (binding.cbYoutube.isChecked && ytKey.isNotEmpty()) {
+                    val url = if (ytKey.startsWith("rtmp")) ytKey else "rtmp://a.rtmp.youtube.com/live2/$ytKey"
+                    destinations.add(LiveDestination("youtube", "YouTube Live", url))
+                }
+                if (binding.cbFacebook.isChecked && fbKey.isNotEmpty()) {
+                    val url = if (fbKey.startsWith("rtmp")) fbKey else "rtmps://live-api-s.facebook.com:443/rtmp/$fbKey"
+                    destinations.add(LiveDestination("facebook", "Facebook Live", url))
+                }
+                if (binding.cbInstagram.isChecked && igKey.isNotEmpty()) {
+                    val url = if (igKey.startsWith("rtmp")) igKey else "rtmps://live-upload.instagram.com:443/rtmp/$igKey"
+                    destinations.add(LiveDestination("instagram", "Instagram Live", url))
+                }
+
+                if (destinations.isEmpty()) {
+                    showToast("कृपया कम से कम एक प्लेटफॉर्म चुनें और उसकी Stream Key दर्ज करें")
                     return@setOnClickListener
                 }
-                startBroadcastingStudio(key)
+
+                startBroadcastingStudio(destinations)
             }
         }
     }
@@ -975,14 +1114,17 @@ class MainActivity : AppCompatActivity() {
      * 4. Start RTMP stream to YouTube/Facebook using bonded network
      * 5. Start foreground service so broadcast survives screen lock
      */
-    private fun startBroadcastingStudio(streamKey: String) {
+    /**
+     * IN-APP MULTI-BROADCASTER:
+     * 1. Start HardwareVideoEncoder → inputSurface created
+     * 2. Re-bind camera to wire BOTH screen preview + encoder surface
+     * 3. Wait for SPS/PPS from encoder (up to 2s)
+     * 4. Start concurrent RTMP/RTMPS streams to YouTube, Facebook, and Instagram
+     * 5. Start foreground service so broadcast survives screen lock
+     */
+    private fun startBroadcastingStudio(destinations: List<LiveDestination>) {
         isStreaming = true
 
-        // Determine full RTMP URL from platform selector in UI
-        val rtmpUrl = buildRtmpUrl(streamKey)
-        Log.d(TAG, "Studio RTMP target: ${rtmpUrl.take(45)}…")
-
-        // Step 1: Start encoder — creates MediaCodec input surface
         val encWidth = if (captureWidth > 0) captureWidth else 1920
         val encHeight = if (captureHeight > 0) captureHeight else 1080
         val encBitrate = if (encWidth <= 1280) 2_500_000 else 4_500_000
@@ -995,12 +1137,9 @@ class MainActivity : AppCompatActivity() {
         }
         videoEncoder?.start()
 
-        // Step 2: Wire screen preview + encoder surface
         rebindEncoderPreviewForStudio()
 
-        // Step 3 & 4: Wait for SPS/PPS then open RTMP — on background thread
         Thread {
-            // Wait up to 2s for encoder to emit SPS/PPS
             var waited = 0
             while ((videoEncoder?.sps == null || videoEncoder?.pps == null) && waited < 2000) {
                 Thread.sleep(50)
@@ -1010,48 +1149,34 @@ class MainActivity : AppCompatActivity() {
             val pps = videoEncoder?.pps
             Log.d(TAG, "Studio SPS ready after ${waited}ms (sps=${sps?.size}B, pps=${pps?.size}B)")
 
-            // Step 4: Connect RTMP with AVC header ready (passing context for USB audio routing)
             rtmpStreamManager = RtmpStreamManager(this)
-            rtmpStreamManager?.startLiveStream(
-                rtmpUrl = rtmpUrl,
+            rtmpStreamManager?.startMultiStream(
+                destinations = destinations,
                 sps = sps,
                 pps = pps,
-                onConnected = {
+                onTargetConnected = { id, label ->
                     runOnUiThread {
-                        binding.btnToggleStudioLive.text = "STOP LIVE"
+                        binding.btnToggleStudioLive.text = "STOP BROADCAST"
                         binding.btnToggleStudioLive.setBackgroundResource(R.drawable.bg_cta_rounded)
                         binding.btnToggleStudioLive.setTextColor(Color.BLACK)
-                        updateLiveBadge(true, "🔴 LIVE (BONDED)")
-                        showToast("📡 Live! Overlays & signal bonding active")
+                        updateLiveBadge(true, "🔴 LIVE: $label")
+                        showToast("📡 Live on $label!")
                     }
-                    // Step 5: Foreground service keeps us alive on screen lock
-                    StreamingForegroundService.start(this@MainActivity, "🔴 LIVE — Studio Broadcast")
                 },
-                onError = { errMsg ->
+                onTargetFailed = { id, label, err ->
+                    runOnUiThread {
+                        showToast("⚠️ $label: $err")
+                    }
+                },
+                onAllDisconnected = {
                     runOnUiThread {
                         stopBroadcasting()
-                        showToast("⚠️ Stream Error: $errMsg")
+                        showToast("All live broadcasts ended")
                     }
                 }
             )
+            StreamingForegroundService.start(this@MainActivity, "🔴 LIVE — Multi-Broadcaster")
         }.start()
-    }
-
-    /**
-     * Resolve the RTMP endpoint from UI platform chips + stream key.
-     * Uses secure RTMPS (port 443 with TLS) for Facebook and Instagram Live.
-     * If the key already starts with "rtmp://" or "rtmps://" it is used verbatim (custom RTMP).
-     */
-    private fun buildRtmpUrl(streamKey: String): String {
-        if (streamKey.startsWith("rtmp://") || streamKey.startsWith("rtmps://")) {
-            return streamKey
-        }
-        return when {
-            binding.chipYoutube.isChecked   -> "rtmp://a.rtmp.youtube.com/live2/$streamKey"
-            binding.chipFacebook.isChecked  -> "rtmps://live-api-s.facebook.com:443/rtmp/$streamKey"
-            binding.chipInstagram.isChecked -> "rtmps://live-upload.instagram.com:443/rtmp/$streamKey"
-            else                            -> "rtmp://a.rtmp.youtube.com/live2/$streamKey"
-        }
     }
 
     private fun stopBroadcasting() {
@@ -1082,17 +1207,65 @@ class MainActivity : AppCompatActivity() {
         if (activeBackend == CameraBackend.NATIVE_UVC) {
             updateUvcSurfacesForCurrentMode()
         } else {
-            bindCamera(currentMode)
+            cameraProvider?.let { bindCamera(currentMode) }
         }
 
         binding.btnToggleBridgeStream.text = "START OBS STREAM"
-        binding.btnToggleBridgeStream.setBackgroundResource(R.drawable.bg_cta_rounded)
+        binding.btnToggleBridgeStream.setBackgroundResource(R.drawable.bg_cta_emerald)
         binding.btnToggleBridgeStream.setTextColor(Color.BLACK)
-        binding.btnToggleStudioLive.text = "GO LIVE (BONDED)"
+        binding.btnToggleStudioLive.text = "🔴 GO LIVE TO ALL"
         binding.btnToggleStudioLive.setBackgroundResource(R.drawable.bg_cta_red)
         binding.btnToggleStudioLive.setTextColor(Color.WHITE)
         updateLiveBadge(false, "STANDBY")
         showToast("Broadcast stopped")
+    }
+
+    private fun loadSavedPreferences() {
+        val prefs = getSharedPreferences("cambridge_prefs", Context.MODE_PRIVATE)
+
+        binding.etYoutubeKey.setText(prefs.getString("yt_key", ""))
+        binding.etFacebookKey.setText(prefs.getString("fb_key", ""))
+        binding.etInstagramKey.setText(prefs.getString("ig_key", ""))
+        binding.cbYoutube.isChecked = prefs.getBoolean("yt_checked", true)
+        binding.cbFacebook.isChecked = prefs.getBoolean("fb_checked", false)
+        binding.cbInstagram.isChecked = prefs.getBoolean("ig_checked", false)
+
+        val savedKatha = prefs.getString("katha_title", "श्रीमद् भागवत कथा ज्ञान यज्ञ")
+        val savedVyas = prefs.getString("vyas_name", "पूज्य व्यास जी महाराज")
+        val savedDay = prefs.getString("day_text", "दिवस: 1 (कथा महात्म्य)")
+        val savedTicker = prefs.getString("ticker_text", "।। श्री राधे कृष्ण ।। कथा समय: दोपहर 2:00 से सायं 6:00 बजे तक | आरती एवं प्रसाद प्रतिदिन सायं 6:00 बजे | संपर्क: 9876543210")
+        val savedUpi = prefs.getString("saved_upi_id", "")
+
+        binding.etKathaTitle.setText(savedKatha)
+        binding.etVyasName.setText(savedVyas)
+        binding.etDayText.setText(savedDay)
+        binding.etTickerText.setText(savedTicker)
+        if (!savedUpi.isNullOrEmpty()) {
+            binding.etUpiId.setText(savedUpi)
+            binding.overlayView.compositor.generateUpiQr(savedUpi, "Katha Sewa")
+        }
+
+        binding.overlayView.compositor.kathaTitle = savedKatha ?: ""
+        binding.overlayView.compositor.vyasJiName = savedVyas ?: ""
+        binding.overlayView.compositor.dayText = savedDay ?: ""
+        binding.overlayView.compositor.setCustomTicker(savedTicker ?: "")
+    }
+
+    private fun savePref(key: String, value: String) {
+        getSharedPreferences("cambridge_prefs", Context.MODE_PRIVATE).edit().putString(key, value).apply()
+    }
+
+    private fun savePref(key: String, value: Boolean) {
+        getSharedPreferences("cambridge_prefs", Context.MODE_PRIVATE).edit().putBoolean(key, value).apply()
+    }
+
+    private fun saveOverlayPreferences() {
+        val prefs = getSharedPreferences("cambridge_prefs", Context.MODE_PRIVATE).edit()
+        prefs.putString("katha_title", binding.etKathaTitle.text.toString())
+        prefs.putString("vyas_name", binding.etVyasName.text.toString())
+        prefs.putString("day_text", binding.etDayText.text.toString())
+        prefs.putString("ticker_text", binding.etTickerText.text.toString())
+        prefs.apply()
     }
 
     // ─── Helpers ───────────────────────────────────────────────────────────────

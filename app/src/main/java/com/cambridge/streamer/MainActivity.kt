@@ -69,6 +69,7 @@ class MainActivity : AppCompatActivity() {
     private var isStreaming = false
     private var captureWidth = 1920
     private var captureHeight = 1080
+    private var isScreenPreviewForcedOn = false
 
     // Gallery Image Picker for Prasang / Jhanki Picture-in-Picture
     private val imagePickerLauncher = registerForActivityResult(
@@ -431,6 +432,14 @@ class MainActivity : AppCompatActivity() {
             checkAppUpdates(silent = false)
         }
 
+        // 1-Tap Screen Preview Toggle
+        binding.btnTogglePreview.setOnClickListener {
+            isScreenPreviewForcedOn = !isScreenPreviewForcedOn
+            updateUvcSurfacesForCurrentMode()
+            val stateText = if (isScreenPreviewForcedOn) "👁️ Preview ON" else "⚡ Preview OFF (Ultra Low Latency)"
+            showToast(stateText)
+        }
+
         // Bridge mode CTA
         binding.btnToggleBridgeStream.setOnClickListener {
             if (isStreaming) stopBroadcasting() else startBroadcastingBridge()
@@ -722,32 +731,33 @@ class MainActivity : AppCompatActivity() {
         val holderSurface = binding.uvcViewFinder.holder.surface
         val encoderSurface = videoEncoder?.inputSurface
 
-        if (isStreaming && currentMode == ProductionMode.BRIDGE_TO_OBS) {
-            // STOP SCREEN PREVIEW DURING OBS STREAMING:
-            // Eliminates GPU double-blitting, display VSYNC delay, and phone thermal throttling.
-            // 100% of GPU & bus throughput is dedicated to hardware MediaCodec!
-            if (holderSurface.isValid) {
-                engine.removeSurface(holderSurface)
-            }
-            binding.uvcViewFinder.visibility = View.GONE
+        // In Bridge mode during active streaming, screen preview is OFF by default for zero latency,
+        // but user can 1-tap "👁️ Preview: OFF/ON" pill anytime to verify video!
+        val shouldShowPreview = !isStreaming || currentMode != ProductionMode.BRIDGE_TO_OBS || isScreenPreviewForcedOn
 
-            if (encoderSurface != null && encoderSurface.isValid) {
-                engine.addSurface(encoderSurface)
-                Log.d(TAG, "Bridge streaming active: Screen preview STOPPED for zero latency & max speed")
-            }
-        } else {
-            // Standby (framing preview) or In-App Studio mode:
+        if (shouldShowPreview) {
             binding.uvcViewFinder.visibility = View.VISIBLE
             if (holderSurface.isValid) {
                 engine.addSurface(holderSurface)
                 Log.d(TAG, "Screen preview attached")
             }
-
-            if (isStreaming && encoderSurface != null && encoderSurface.isValid) {
-                engine.addSurface(encoderSurface)
-            } else if (!isStreaming && encoderSurface != null) {
-                engine.removeSurface(encoderSurface)
+            binding.btnTogglePreview.text = "👁️ Preview: ON"
+            binding.btnTogglePreview.setTextColor(Color.parseColor("#00E676"))
+        } else {
+            if (holderSurface.isValid) {
+                engine.removeSurface(holderSurface)
             }
+            binding.uvcViewFinder.visibility = View.GONE
+            binding.btnTogglePreview.text = "👁️ Preview: OFF"
+            binding.btnTogglePreview.setTextColor(Color.parseColor("#80D8FF"))
+            Log.d(TAG, "Screen preview detached for zero latency streaming")
+        }
+
+        if (isStreaming && encoderSurface != null && encoderSurface.isValid) {
+            engine.addSurface(encoderSurface)
+            Log.d(TAG, "Encoder surface active for broadcast")
+        } else if (!isStreaming && encoderSurface != null) {
+            engine.removeSurface(encoderSurface)
         }
     }
 

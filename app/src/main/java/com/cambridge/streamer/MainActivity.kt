@@ -82,7 +82,7 @@ class MainActivity : AppCompatActivity() {
     private var isLowLatencyMode = true
     private var captureWidth = 1920
     private var captureHeight = 1080
-    private var isScreenPreviewForcedOff = false
+    private var isScreenPreviewPeeking = false
     private var lastDirectFrameTime = 0L
     private var pixelCopyJob: Job? = null
     private val pixelCopyHandler = Handler(Looper.getMainLooper())
@@ -524,10 +524,14 @@ class MainActivity : AppCompatActivity() {
 
         // 1-Tap Screen Preview Toggle
         binding.btnTogglePreview.setOnClickListener {
-            isScreenPreviewForcedOff = !isScreenPreviewForcedOff
-            updateUvcSurfacesForCurrentMode()
-            val stateText = if (!isScreenPreviewForcedOff) "👁️ Preview ON" else "⚡ Preview OFF (Blackout Screen)"
-            showToast(stateText)
+            if (isStreaming) {
+                isScreenPreviewPeeking = !isScreenPreviewPeeking
+                updateUvcSurfacesForCurrentMode()
+                val stateText = if (isScreenPreviewPeeking) "👁️ Screen Preview Active (Peeking)" else "⚡ Preview Stopped (GPU/CPU Power Saver Active)"
+                showToast(stateText)
+            } else {
+                showToast("👁️ Camera Preview is Active")
+            }
         }
 
         // Zero-Lag Engine Info Pill
@@ -924,26 +928,35 @@ class MainActivity : AppCompatActivity() {
         val holderSurface = binding.uvcViewFinder.holder.surface
         val encoderSurface = videoEncoder?.inputSurface
 
-        // Always keep preview active by default so hardware capture pipeline remains active
-        // and user can monitor HDMI signal on phone screen.
-        val shouldShowPreview = !isScreenPreviewForcedOff
+        // When streaming: Screen preview is STOPPED by default to eliminate CPU/GPU rendering load and battery heat.
+        // User can tap "👁️ Preview" pill to peek at framing anytime.
+        // When not streaming: Preview is active so user can frame the camera.
+        val shouldShowPreview = if (isStreaming) isScreenPreviewPeeking else true
 
         if (shouldShowPreview) {
+            binding.layoutStreamPowerSaver.visibility = View.GONE
             binding.uvcViewFinder.visibility = View.VISIBLE
             if (holderSurface.isValid) {
                 engine.addSurface(holderSurface)
                 Log.d(TAG, "Screen preview attached")
             }
-            binding.btnTogglePreview.text = "👁️ Preview: ON"
+            binding.btnTogglePreview.text = if (isStreaming) "👁️ Preview: PEEK ON" else "👁️ Preview: ON"
             binding.btnTogglePreview.setTextColor(Color.parseColor("#00E676"))
         } else {
             if (holderSurface.isValid) {
                 engine.removeSurface(holderSurface)
             }
             binding.uvcViewFinder.visibility = View.GONE
-            binding.btnTogglePreview.text = "⚡ Preview: OFF"
-            binding.btnTogglePreview.setTextColor(Color.parseColor("#80D8FF"))
-            Log.d(TAG, "Screen preview detached")
+            if (isStreaming) {
+                binding.layoutStreamPowerSaver.visibility = View.VISIBLE
+                binding.btnTogglePreview.text = "⚡ Preview: OFF (Cold)"
+                binding.btnTogglePreview.setTextColor(Color.parseColor("#80D8FF"))
+            } else {
+                binding.layoutStreamPowerSaver.visibility = View.GONE
+                binding.btnTogglePreview.text = "⚡ Preview: OFF"
+                binding.btnTogglePreview.setTextColor(Color.parseColor("#9E9E9E"))
+            }
+            Log.d(TAG, "Screen preview detached to save CPU/GPU")
         }
 
         if (isStreaming && encoderSurface != null && encoderSurface.isValid) {
@@ -1014,6 +1027,10 @@ class MainActivity : AppCompatActivity() {
      */
     private fun startBroadcastingBridge() {
         isStreaming = true
+        isScreenPreviewPeeking = false
+
+        // Stop on-screen rendering to save GPU/CPU and prevent device heating
+        updateUvcSurfacesForCurrentMode()
 
         // Ensure Web Bridge is running
         ensureWebServerStarted()
@@ -1026,7 +1043,7 @@ class MainActivity : AppCompatActivity() {
         binding.btnToggleBridgeStream.setBackgroundResource(R.drawable.bg_cta_red)
         binding.btnToggleBridgeStream.setTextColor(Color.WHITE)
         updateLiveBadge(true, "⚡ ZERO-LAG OBS")
-        showToast("Broadcasting direct to OBS Browser (<50ms Zero-Lag)")
+        showToast("⚡ Streaming to OBS (<50ms). Screen render stopped to save GPU/Battery.")
     }
 
     /**
@@ -1047,6 +1064,7 @@ class MainActivity : AppCompatActivity() {
      */
     private fun startBroadcastingStudio(destinations: List<LiveDestination>) {
         isStreaming = true
+        isScreenPreviewPeeking = false
 
         val encWidth = if (captureWidth > 0) captureWidth else 1920
         val encHeight = if (captureHeight > 0) captureHeight else 1080
@@ -1104,6 +1122,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun stopBroadcasting() {
         isStreaming = false
+        isScreenPreviewPeeking = false
+        binding.layoutStreamPowerSaver.visibility = View.GONE
 
         videoEncoder?.inputSurface?.let { nativeUvcEngine?.removeSurface(it) }
         videoEncoder?.stop()
@@ -1251,7 +1271,8 @@ class MainActivity : AppCompatActivity() {
             while (isActive) {
                 delay(40) // ~25 FPS fallback rate
                 val now = System.currentTimeMillis()
-                if (now - lastDirectFrameTime > 400L && activeBackend == CameraBackend.NATIVE_UVC && !isScreenPreviewForcedOff) {
+                val isPreviewActive = if (isStreaming) isScreenPreviewPeeking else true
+                if (now - lastDirectFrameTime > 400L && activeBackend == CameraBackend.NATIVE_UVC && isPreviewActive) {
                     val ws = webServer ?: continue
                     val surfaceView = binding.uvcViewFinder
                     val surface = surfaceView.holder.surface

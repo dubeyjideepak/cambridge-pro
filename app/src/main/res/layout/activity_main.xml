@@ -78,6 +78,46 @@
                 android:textSize="10sp" />
         </LinearLayout>
 
+        <!-- Power Saver Standby: Shown when streaming with screen preview stopped -->
+        <LinearLayout
+            android:id="@+id/layoutStreamPowerSaver"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_glass_card"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:padding="20dp"
+            android:visibility="gone"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="⚡ BROADCAST ACTIVE"
+                android:textColor="#00E676"
+                android:textSize="15sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="Screen preview stopped to save CPU/GPU &amp; prevent heating"
+                android:textColor="@color/text_secondary"
+                android:textSize="11sp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:text="Tap '👁️ Preview' below to peek camera framing anytime"
+                android:textColor="@color/emerald_accent"
+                android:textSize="10sp" />
+        </LinearLayout>
+
         <!-- Live Overlays Layer: Lower-Third Name Strap + Scrolling Ticker + Jhanki + QR -->
         <com.cambridge.streamer.overlay.OverlayView
             android:id="@+id/overlayView"

@@ -40,6 +40,9 @@ class NativeUvcCameraEngine(
     private var activeDevice: UsbDevice? = null
     private val attachedSurfaces = mutableSetOf<Surface>()
 
+    var currentWidth: Int = 1920
+    var currentHeight: Int = 1080
+
     /** Optional callback with raw JPEG frame bytes straight from USB capture card for zero-latency direct bridge */
     var onDirectJpegFrame: ((ByteArray) -> Unit)? = null
 
@@ -81,6 +84,8 @@ class NativeUvcCameraEngine(
                             ?: sizes?.firstOrNull()
 
                         if (preferred != null) {
+                            currentWidth = preferred.width
+                            currentHeight = preferred.height
                             Log.d(TAG, "Opening UVC with resolution: ${preferred.width}x${preferred.height}")
                             helper.openCamera(preferred)
                         } else {
@@ -96,6 +101,14 @@ class NativeUvcCameraEngine(
                     Log.d(TAG, "UVC Camera opened successfully: ${device.productName}")
                     activeDevice = device
 
+                    val size = helper.previewSize
+                    if (size != null && size.width > 0) {
+                        currentWidth = size.width
+                        currentHeight = size.height
+                    }
+                    val w = currentWidth
+                    val h = currentHeight
+
                     try {
                         // Attach all valid surfaces BEFORE starting preview to guarantee frame routing
                         synchronized(attachedSurfaces) {
@@ -107,7 +120,7 @@ class NativeUvcCameraEngine(
                             }
                         }
 
-                        // Register direct frame callback for zero-latency web bridge
+                        // Register direct frame callback with NV21 format for zero-latency web bridge
                         try {
                             helper.setFrameCallback({ buffer ->
                                 val callback = onDirectJpegFrame ?: return@setFrameCallback
@@ -115,22 +128,37 @@ class NativeUvcCameraEngine(
                                     val b0 = buffer.get(0).toInt() and 0xFF
                                     val b1 = buffer.get(1).toInt() and 0xFF
                                     if (b0 == 0xFF && b1 == 0xD8) {
+                                        // Direct MJPEG payload
                                         val bytes = ByteArray(buffer.remaining())
                                         buffer.get(bytes)
                                         buffer.rewind()
                                         callback(bytes)
+                                    } else {
+                                        // Uncompressed NV21/YUY2 payload converted natively by UVCCamera
+                                        val curW = if (currentWidth > 0) currentWidth else 1920
+                                        val curH = if (currentHeight > 0) currentHeight else 1080
+                                        val remaining = buffer.remaining()
+                                        val bytes = ByteArray(remaining)
+                                        buffer.get(bytes)
+                                        buffer.rewind()
+                                        try {
+                                            val expectedNv21 = (curW * curH * 3) / 2
+                                            val fmt = if (remaining == expectedNv21) android.graphics.ImageFormat.NV21 else android.graphics.ImageFormat.YUY2
+                                            val yuvImage = android.graphics.YuvImage(bytes, fmt, curW, curH, null)
+                                            val outStream = java.io.ByteArrayOutputStream(curW * curH / 8)
+                                            yuvImage.compressToJpeg(android.graphics.Rect(0, 0, curW, curH), 75, outStream)
+                                            callback(outStream.toByteArray())
+                                        } catch (e: Exception) {
+                                            Log.w(TAG, "YUV frame conversion to JPEG error", e)
+                                        }
                                     }
                                 }
-                            }, com.serenegiant.usb.UVCCamera.PIXEL_FORMAT_RAW)
+                            }, com.serenegiant.usb.UVCCamera.PIXEL_FORMAT_NV21)
                         } catch (e: Exception) {
                             Log.w(TAG, "Direct frame callback error", e)
                         }
 
                         helper.startPreview()
-
-                        val size = helper.previewSize
-                        val w = size?.width ?: 1920
-                        val h = size?.height ?: 1080
 
                         mainHandler.post {
                             listener.onUvcOpened(device, w, h)

@@ -8,16 +8,21 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.hardware.usb.UsbDevice
 import android.hardware.usb.UsbManager
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
+import android.view.PixelCopy
 import android.view.SurfaceHolder
 import android.view.View
 import android.view.WindowManager
 import android.widget.Toast
+import kotlinx.coroutines.Dispatchers
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -77,7 +82,10 @@ class MainActivity : AppCompatActivity() {
     private var isLowLatencyMode = true
     private var captureWidth = 1920
     private var captureHeight = 1080
-    private var isScreenPreviewForcedOn = false
+    private var isScreenPreviewForcedOff = false
+    private var lastDirectFrameTime = 0L
+    private var pixelCopyJob: Job? = null
+    private val pixelCopyHandler = Handler(Looper.getMainLooper())
 
     // Gallery Image Picker for Prasang / Jhanki Picture-in-Picture
     private val imagePickerLauncher = registerForActivityResult(
@@ -224,6 +232,7 @@ class MainActivity : AppCompatActivity() {
             initNativeUvcEngine()
             registerUsbReceiver()
             setupNetworkUrls()
+            startPixelCopyWatchdog()
             setupListeners()
             loadSavedPreferences()
             updateLatencyModeButtonState()
@@ -240,7 +249,12 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         qrTimerJob?.cancel()
+        pixelCopyJob?.cancel()
         stopBroadcasting()
+        webServer?.isStreaming = false
+        webServer?.stop()
+        webServer = null
+        nativeUvcEngine?.onDirectJpegFrame = null
         nativeUvcEngine?.stop()
         bridgeAudioPipeline?.stop()
         bridgeAudioPipeline = null
@@ -331,6 +345,10 @@ class MainActivity : AppCompatActivity() {
                 Log.e(TAG, "Native UVC engine error: ${error.message}", error)
             }
         })
+        nativeUvcEngine?.onDirectJpegFrame = { jpegBytes ->
+            lastDirectFrameTime = System.currentTimeMillis()
+            webServer?.pushFrame(jpegBytes)
+        }
     }
 
     // ─── USB ───────────────────────────────────────────────────────────────────
@@ -369,6 +387,24 @@ class MainActivity : AppCompatActivity() {
     private fun setupNetworkUrls() {
         val localIp = NetworkUtils.getLocalIpAddress()
         binding.tvDirectWebUrl.text = "http://$localIp:8080/obs"
+        ensureWebServerStarted()
+    }
+
+    private fun ensureWebServerStarted() {
+        if (webServer == null) {
+            try {
+                webServer = WebMonitorServer(port = 8080)
+                webServer?.isStreaming = true
+                webServer?.start()
+                Log.d(TAG, "WebMonitorServer started on port 8080")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to start WebMonitorServer", e)
+            }
+        }
+        nativeUvcEngine?.onDirectJpegFrame = { jpegBytes ->
+            lastDirectFrameTime = System.currentTimeMillis()
+            webServer?.pushFrame(jpegBytes)
+        }
     }
 
     private fun setupBondingEngine() {
@@ -488,9 +524,9 @@ class MainActivity : AppCompatActivity() {
 
         // 1-Tap Screen Preview Toggle
         binding.btnTogglePreview.setOnClickListener {
-            isScreenPreviewForcedOn = !isScreenPreviewForcedOn
+            isScreenPreviewForcedOff = !isScreenPreviewForcedOff
             updateUvcSurfacesForCurrentMode()
-            val stateText = if (isScreenPreviewForcedOn) "👁️ Preview ON" else "⚡ Preview OFF (Ultra Low Latency)"
+            val stateText = if (!isScreenPreviewForcedOff) "👁️ Preview ON" else "⚡ Preview OFF (Blackout Screen)"
             showToast(stateText)
         }
 
@@ -828,7 +864,7 @@ class MainActivity : AppCompatActivity() {
                         binding.tvVideoTelemetry.setTextColor(Color.parseColor("#00E676"))
                     }
                 }
-                if (isStreaming && currentMode == ProductionMode.BRIDGE_TO_OBS && webServer != null) {
+                if (webServer != null) {
                     try {
                         val bmp = image.toBitmap()
                         val stream = java.io.ByteArrayOutputStream()
@@ -888,9 +924,9 @@ class MainActivity : AppCompatActivity() {
         val holderSurface = binding.uvcViewFinder.holder.surface
         val encoderSurface = videoEncoder?.inputSurface
 
-        // In Bridge mode during active streaming, screen preview is OFF by default for zero latency,
-        // but user can 1-tap "👁️ Preview: OFF/ON" pill anytime to verify video!
-        val shouldShowPreview = !isStreaming || currentMode != ProductionMode.BRIDGE_TO_OBS || isScreenPreviewForcedOn
+        // Always keep preview active by default so hardware capture pipeline remains active
+        // and user can monitor HDMI signal on phone screen.
+        val shouldShowPreview = !isScreenPreviewForcedOff
 
         if (shouldShowPreview) {
             binding.uvcViewFinder.visibility = View.VISIBLE
@@ -905,9 +941,9 @@ class MainActivity : AppCompatActivity() {
                 engine.removeSurface(holderSurface)
             }
             binding.uvcViewFinder.visibility = View.GONE
-            binding.btnTogglePreview.text = "👁️ Preview: OFF"
+            binding.btnTogglePreview.text = "⚡ Preview: OFF"
             binding.btnTogglePreview.setTextColor(Color.parseColor("#80D8FF"))
-            Log.d(TAG, "Screen preview detached for zero latency streaming")
+            Log.d(TAG, "Screen preview detached")
         }
 
         if (isStreaming && encoderSurface != null && encoderSurface.isValid) {
@@ -979,26 +1015,13 @@ class MainActivity : AppCompatActivity() {
     private fun startBroadcastingBridge() {
         isStreaming = true
 
-        // Step 1: Start Ultra-Low Latency Direct Web Bridge for OBS Browser Source (<50ms delay)
-        webServer = WebMonitorServer(port = 8080)
-        webServer?.isStreaming = true
-        try {
-            webServer?.start()
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to start WebMonitorServer", e)
-        }
+        // Ensure Web Bridge is running
+        ensureWebServerStarted()
 
-        // Step 2: Route raw capture frames straight into web server (Bypasses encoder completely)
-        nativeUvcEngine?.onDirectJpegFrame = { jpegBytes ->
-            if (isStreaming) {
-                webServer?.pushFrame(jpegBytes)
-            }
-        }
-
-        // Step 3: Foreground service prevents OS sleep
+        // Foreground service prevents OS sleep
         StreamingForegroundService.start(this, "⚡ LIVE → OBS Browser Bridge (<50ms)")
 
-        // Step 4: UI update
+        // UI update
         binding.btnToggleBridgeStream.text = "STOP OBS STREAM"
         binding.btnToggleBridgeStream.setBackgroundResource(R.drawable.bg_cta_red)
         binding.btnToggleBridgeStream.setTextColor(Color.WHITE)
@@ -1086,16 +1109,13 @@ class MainActivity : AppCompatActivity() {
         videoEncoder?.stop()
         videoEncoder = null
 
-        nativeUvcEngine?.onDirectJpegFrame = null
         bridgeAudioPipeline?.onAudioFrame = null
         rtspAudioConfig = null
 
         rtspServer?.stop()
         rtspServer = null
 
-        webServer?.isStreaming = false
-        webServer?.stop()
-        webServer = null
+        // Web monitor server stays running so OBS / Browser can continuously monitor local feed
 
         rtmpStreamManager?.stopLiveStream()
         rtmpStreamManager = null
@@ -1218,6 +1238,53 @@ class MainActivity : AppCompatActivity() {
             }
             .setNegativeButton("Keep Current", null)
             .show()
+    }
+
+    /**
+     * Triple-redundancy watchdog: If direct USB frames are delayed (>400ms),
+     * grabs hardware frames directly from SurfaceView using Android's PixelCopy API.
+     */
+    private fun startPixelCopyWatchdog() {
+        pixelCopyJob?.cancel()
+        pixelCopyJob = lifecycleScope.launch(Dispatchers.Default) {
+            var fallbackBitmap: Bitmap? = null
+            while (isActive) {
+                delay(40) // ~25 FPS fallback rate
+                val now = System.currentTimeMillis()
+                if (now - lastDirectFrameTime > 400L && activeBackend == CameraBackend.NATIVE_UVC && !isScreenPreviewForcedOff) {
+                    val ws = webServer ?: continue
+                    val surfaceView = binding.uvcViewFinder
+                    val surface = surfaceView.holder.surface
+                    if (surface != null && surface.isValid && surfaceView.width > 0 && surfaceView.height > 0) {
+                        val w = surfaceView.width
+                        val h = surfaceView.height
+                        val currentBmp = fallbackBitmap
+                        val bmp = if (currentBmp != null && currentBmp.width == w && currentBmp.height == h) {
+                            currentBmp
+                        } else {
+                            Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888).also { fallbackBitmap = it }
+                        }
+
+                        val copyLatch = java.util.concurrent.CountDownLatch(1)
+                        var success = false
+                        try {
+                            PixelCopy.request(surfaceView, bmp, { result ->
+                                success = (result == PixelCopy.SUCCESS)
+                                copyLatch.countDown()
+                            }, pixelCopyHandler)
+                            copyLatch.await(50, java.util.concurrent.TimeUnit.MILLISECONDS)
+                            if (success) {
+                                val outStream = java.io.ByteArrayOutputStream(w * h / 8)
+                                bmp.compress(Bitmap.CompressFormat.JPEG, 75, outStream)
+                                ws.pushFrame(outStream.toByteArray())
+                            }
+                        } catch (e: Exception) {
+                            // PixelCopy fallback skipped
+                        }
+                    }
+                }
+            }
+        }
     }
 
     private fun showToast(msg: String) {

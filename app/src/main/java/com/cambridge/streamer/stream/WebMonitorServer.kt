@@ -23,14 +23,41 @@ class WebMonitorServer(
 ) : NanoHTTPD(port) {
 
     @Volatile
-    var isStreaming = false
+    var isStreaming = true
 
     private val clientQueues = CopyOnWriteArrayList<ArrayBlockingQueue<ByteArray>>()
     @Volatile
     private var latestSnapshot: ByteArray? = null
 
+    private var placeholderJpeg: ByteArray? = null
+
+    private fun getPlaceholderJpeg(): ByteArray {
+        if (placeholderJpeg != null) return placeholderJpeg!!
+        val bmp = android.graphics.Bitmap.createBitmap(640, 360, android.graphics.Bitmap.Config.ARGB_8888)
+        val canvas = android.graphics.Canvas(bmp)
+        canvas.drawColor(android.graphics.Color.parseColor("#06120E"))
+        val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            color = android.graphics.Color.parseColor("#00E676")
+            textSize = 26f
+            textAlign = android.graphics.Paint.Align.CENTER
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+        }
+        canvas.drawText("⚡ CamBridge Pro — Waiting for HDMI 4K Signal...", 320f, 170f, paint)
+        val subPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            color = android.graphics.Color.parseColor("#80D8FF")
+            textSize = 17f
+            textAlign = android.graphics.Paint.Align.CENTER
+        }
+        canvas.drawText("Connect Camera HDMI via USB-C Capture Card", 320f, 210f, subPaint)
+        val stream = java.io.ByteArrayOutputStream()
+        bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 80, stream)
+        val bytes = stream.toByteArray()
+        placeholderJpeg = bytes
+        return bytes
+    }
+
     fun pushFrame(jpegBytes: ByteArray) {
-        if (!isStreaming || jpegBytes.isEmpty()) return
+        if (jpegBytes.isEmpty()) return
         latestSnapshot = jpegBytes
 
         if (clientQueues.isEmpty()) return
@@ -62,7 +89,7 @@ class WebMonitorServer(
                                 overflow: hidden;
                                 background-color: #000;
                             }
-                            img {
+                            #stream {
                                 width: 100vw;
                                 height: 100vh;
                                 object-fit: contain;
@@ -71,11 +98,34 @@ class WebMonitorServer(
                         </style>
                     </head>
                     <body>
-                        <img src="/stream.mjpeg" alt="Live Feed" />
+                        <img id="stream" src="/stream.mjpeg" alt="Live Feed" />
+                        <script>
+                            const img = document.getElementById('stream');
+                            let fallbackActive = false;
+                            function startSnapshotPolling() {
+                                if (fallbackActive) return;
+                                fallbackActive = true;
+                                console.warn('CamBridge: Switching to fast snapshot polling fallback');
+                                setInterval(() => {
+                                    img.src = '/snapshot.jpg?t=' + Date.now();
+                                }, 33);
+                            }
+                            img.onerror = function() {
+                                startSnapshotPolling();
+                            };
+                            // Watchdog: If image hasn't loaded after 2s, initiate polling
+                            setTimeout(() => {
+                                if (!img.complete || img.naturalWidth === 0) {
+                                    startSnapshotPolling();
+                                }
+                            }, 2000);
+                        </script>
                     </body>
                     </html>
                 """.trimIndent()
-                newFixedLengthResponse(Response.Status.OK, "text/html", html)
+                val resp = newFixedLengthResponse(Response.Status.OK, "text/html", html)
+                resp.addHeader("Cache-Control", "no-cache, no-store, must-revalidate")
+                resp
             }
             uri == "/" || uri == "/index.html" -> {
                 val host = session.headers["host"]?.split(":")?.get(0) ?: "phone-ip"
@@ -149,17 +199,40 @@ class WebMonitorServer(
                             <div>Direct Hardware USB-to-Web Bridge &bull; 0ms Re-encode Delay</div>
                             <div>OBS Browser Source: <span class="highlight">http://$host:8080/obs</span></div>
                         </footer>
+                        <script>
+                            const img = document.getElementById('stream');
+                            let fallbackActive = false;
+                            function startSnapshotPolling() {
+                                if (fallbackActive) return;
+                                fallbackActive = true;
+                                setInterval(() => {
+                                    img.src = '/snapshot.jpg?t=' + Date.now();
+                                }, 33);
+                            }
+                            img.onerror = startSnapshotPolling;
+                            setTimeout(() => {
+                                if (!img.complete || img.naturalWidth === 0) {
+                                    startSnapshotPolling();
+                                }
+                            }, 2000);
+                        </script>
                     </body>
                     </html>
                 """.trimIndent()
-                newFixedLengthResponse(Response.Status.OK, "text/html", html)
+                val resp = newFixedLengthResponse(Response.Status.OK, "text/html", html)
+                resp.addHeader("Cache-Control", "no-cache, no-store, must-revalidate")
+                resp
             }
             uri == "/stream.mjpeg" -> {
                 serveMjpegStream()
             }
             uri == "/snapshot.jpg" -> {
-                val bytes = latestSnapshot ?: ByteArray(0)
-                newChunkedResponse(Response.Status.OK, "image/jpeg", ByteArrayInputStream(bytes))
+                val bytes = latestSnapshot ?: getPlaceholderJpeg()
+                val resp = newFixedLengthResponse(Response.Status.OK, "image/jpeg", ByteArrayInputStream(bytes), bytes.size.toLong())
+                resp.addHeader("Cache-Control", "no-cache, no-store, must-revalidate")
+                resp.addHeader("Pragma", "no-cache")
+                resp.addHeader("Expires", "0")
+                resp
             }
             else -> {
                 newFixedLengthResponse(Response.Status.NOT_FOUND, "text/plain", "Not Found")
@@ -170,6 +243,10 @@ class WebMonitorServer(
     private fun serveMjpegStream(): Response {
         val boundary = "CAMBRIDGE_FRAME_BOUNDARY"
         val queue = ArrayBlockingQueue<ByteArray>(1)
+
+        // Seed with current latest frame so browser starts immediately
+        val seed = latestSnapshot ?: getPlaceholderJpeg()
+        queue.offer(seed)
         clientQueues.add(queue)
 
         val stream = object : InputStream() {
@@ -183,12 +260,13 @@ class WebMonitorServer(
             }
 
             override fun read(b: ByteArray, off: Int, len: Int): Int {
-                if (isClosed || !isStreaming) return -1
+                if (isClosed) return -1
 
                 while (currentChunk == null || currentChunk!!.available() == 0) {
-                    if (isClosed || !isStreaming) return -1
+                    if (isClosed) return -1
                     try {
-                        val frameBytes = queue.poll(1000, TimeUnit.MILLISECONDS) ?: continue
+                        val frameBytes = queue.poll(1000, TimeUnit.MILLISECONDS)
+                            ?: (latestSnapshot ?: getPlaceholderJpeg())
                         val header = ("--$boundary\r\n" +
                                 "Content-Type: image/jpeg\r\n" +
                                 "Content-Length: ${frameBytes.size}\r\n\r\n").toByteArray()

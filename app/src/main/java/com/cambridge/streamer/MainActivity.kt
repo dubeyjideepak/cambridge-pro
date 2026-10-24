@@ -411,9 +411,13 @@ class MainActivity : AppCompatActivity() {
                         val hasClients = (activeCount > 0)
                         if (hasClients != isWifiStreamingActive) {
                             isWifiStreamingActive = hasClients
-                            updateUvcSurfacesForCurrentMode()
+                            if (hasClients && !isStreaming && currentMode == ProductionMode.BRIDGE_TO_OBS) {
+                                startBroadcastingBridge()
+                            } else {
+                                updateUvcSurfacesForCurrentMode()
+                            }
                             if (hasClients) {
-                                showToast("⚡ Wi-Fi stream active! Screen preview paused to save GPU & battery.")
+                                showToast("⚡ OBS client connected! Hardware GPU bridge active (<35ms).")
                             }
                         }
                     }
@@ -1084,6 +1088,7 @@ class MainActivity : AppCompatActivity() {
      * 4. If no camera connected: simulates 60 FPS broadcast studio signal with millisecond clock
      */
     private fun startBroadcastingBridge() {
+        if (isStreaming && videoEncoder != null) return
         isStreaming = true
         isScreenPreviewPeeking = false
 
@@ -1111,17 +1116,21 @@ class MainActivity : AppCompatActivity() {
         val encHeight = if (captureHeight > 0) captureHeight else 1080
         val encBitrate = if (encWidth <= 1280) 2_500_000 else 4_500_000
 
+        var avcHeaderSent = false
         videoEncoder = HardwareVideoEncoder(
             width = encWidth,
             height = encHeight,
             bitrate = encBitrate,
             frameRate = 60
         ) { frameBytes, isKeyFrame, ptsMs ->
-            val sps = videoEncoder?.sps
-            val pps = videoEncoder?.pps
-            if (sps != null && pps != null) {
-                val seqTag = com.cambridge.streamer.stream.FlvMuxer.createAvcSequenceHeaderTag(sps, pps)
-                webServer?.setAvcSequenceHeader(seqTag)
+            if (!avcHeaderSent) {
+                val sps = videoEncoder?.sps
+                val pps = videoEncoder?.pps
+                if (sps != null && pps != null) {
+                    val seqTag = com.cambridge.streamer.stream.FlvMuxer.createAvcSequenceHeaderTag(sps, pps)
+                    webServer?.setAvcSequenceHeader(seqTag)
+                    avcHeaderSent = true
+                }
             }
             val flvTag = com.cambridge.streamer.stream.FlvMuxer.createVideoTag(frameBytes, isKeyFrame, ptsMs)
             webServer?.pushHardwareFlvTag(flvTag, isKeyFrame)

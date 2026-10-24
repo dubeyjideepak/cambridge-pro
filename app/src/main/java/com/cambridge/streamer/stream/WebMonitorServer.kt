@@ -87,9 +87,18 @@ class WebMonitorServer(
 
     /**
      * Stores the AVC Sequence Header (SPS + PPS) produced by the hardware MediaCodec encoder.
+     * Immediately dispatches it to any connected streams that arrived before the first SPS/PPS was ready.
      */
     fun setAvcSequenceHeader(seqHeaderTag: ByteArray) {
+        val wasNull = (cachedAvcSequenceHeader == null)
         cachedAvcSequenceHeader = seqHeaderTag
+        if (wasNull) {
+            synchronized(activeFlvStreams) {
+                for (stream in activeFlvStreams) {
+                    stream.pushSequenceHeader(seqHeaderTag)
+                }
+            }
+        }
         Log.d(TAG, "Cached AVC Sequence Header tag (${seqHeaderTag.size} bytes)")
     }
 
@@ -503,6 +512,11 @@ class WebMonitorServer(
                 hasReceivedFirstKeyframe = true
                 queue.offer(it)
             }
+        }
+
+        fun pushSequenceHeader(headerTag: ByteArray) {
+            if (isClosed) return
+            queue.offer(headerTag)
         }
 
         fun pushTag(tag: ByteArray, isKeyFrame: Boolean) {

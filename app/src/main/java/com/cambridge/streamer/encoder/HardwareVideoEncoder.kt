@@ -40,7 +40,10 @@ class HardwareVideoEncoder(
                 setInteger(MediaFormat.KEY_BIT_RATE, bitrate)
                 setInteger(MediaFormat.KEY_FRAME_RATE, frameRate)
                 setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1) // 1 second GOP
-                setInteger(MediaFormat.KEY_BITRATE_MODE, MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_CBR)
+                // Variable Bitrate (VBR): prevents hardware encoder rate-control from dropping frames during sudden motion bursts
+                try {
+                    setInteger(MediaFormat.KEY_BITRATE_MODE, MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_VBR)
+                } catch (_: Exception) {}
 
                 // Baseline Profile (strictly 0 B-frames, zero encoder lookahead delay)
                 try {

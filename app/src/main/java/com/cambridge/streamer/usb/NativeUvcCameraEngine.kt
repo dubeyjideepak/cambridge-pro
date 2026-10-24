@@ -123,21 +123,27 @@ class NativeUvcCameraEngine(
                             }
                         }
 
-                        // Register direct frame callback with NV21 format for zero-latency web bridge
+                        // Register direct frame callback with RAW format for pure zero-latency pass-through
                         try {
+                            var loggedFirstFrame = false
                             helper.setFrameCallback({ buffer ->
                                 val callback = onDirectJpegFrame ?: return@setFrameCallback
                                 if (buffer != null && buffer.remaining() > 4) {
                                     val b0 = buffer.get(0).toInt() and 0xFF
                                     val b1 = buffer.get(1).toInt() and 0xFF
+                                    if (!loggedFirstFrame) {
+                                        loggedFirstFrame = true
+                                        val isMjpeg = (b0 == 0xFF && b1 == 0xD8)
+                                        Log.i(TAG, "⚡ First USB frame received: isHardwareMJPEG=$isMjpeg, bytes=${buffer.remaining()}")
+                                    }
                                     if (b0 == 0xFF && b1 == 0xD8) {
-                                        // Direct MJPEG payload
+                                        // Direct MJPEG payload - 100% Pure pass-through, zero transcoding!
                                         val bytes = ByteArray(buffer.remaining())
                                         buffer.get(bytes)
                                         buffer.rewind()
                                         callback(bytes)
                                     } else {
-                                        // Uncompressed NV21/YUY2 payload converted natively by UVCCamera
+                                        // Uncompressed NV21/YUY2 payload fallback
                                         val curW = if (currentWidth > 0) currentWidth else 1920
                                         val curH = if (currentHeight > 0) currentHeight else 1080
                                         val remaining = buffer.remaining()
@@ -161,7 +167,7 @@ class NativeUvcCameraEngine(
                                         }
                                     }
                                 }
-                            }, com.serenegiant.usb.UVCCamera.PIXEL_FORMAT_NV21)
+                            }, com.serenegiant.usb.UVCCamera.PIXEL_FORMAT_RAW)
                         } catch (e: Exception) {
                             Log.w(TAG, "Direct frame callback error", e)
                         }

@@ -886,6 +886,7 @@ class MainActivity : AppCompatActivity() {
                         val bmp = image.toBitmap()
                         val stream = java.io.ByteArrayOutputStream()
                         bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 80, stream)
+                        lastDirectFrameTime = System.currentTimeMillis()
                         webServer?.pushFrame(stream.toByteArray())
                     } catch (e: Exception) {
                         Log.w(TAG, "HAL frame to JPEG push failed", e)

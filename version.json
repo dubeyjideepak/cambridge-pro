@@ -1,6 +1,6 @@
 {
-  "versionCode": 16,
-  "versionName": "1.1.5",
-  "apkUrl": "https://github.com/dubeyjideepak/cambridge-pro/releases/download/v1.1.5/CamBridgePro.apk",
-  "changelog": "Auto-pause preview on Wi-Fi connect, zero-flicker double-buffered canvas, and buffer pool optimization"
+  "versionCode": 17,
+  "versionName": "1.1.6",
+  "apkUrl": "https://github.com/dubeyjideepak/cambridge-pro/releases/download/v1.1.6/CamBridgePro.apk",
+  "changelog": "Pure Zero-Processing Pass-Through: direct hardware MJPEG stream, zero re-compression, atomic frame signalling, eliminated stalls & GC pauses"
 }

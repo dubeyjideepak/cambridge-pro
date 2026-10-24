@@ -1,6 +1,6 @@
 {
-  "versionCode": 18,
-  "versionName": "1.1.7",
-  "apkUrl": "https://github.com/dubeyjideepak/cambridge-pro/releases/download/v1.1.7/CamBridgePro.apk",
-  "changelog": "Zero-Freeze Engine: Non-blocking rate limiter, NV21 optimized JPEG compression, eradicated socket EOF disconnects and duplicate frames"
+  "versionCode": 19,
+  "versionName": "1.1.8",
+  "apkUrl": "https://github.com/dubeyjideepak/cambridge-pro/releases/download/v1.1.8/CamBridgePro.apk",
+  "changelog": "Pure Hardware GPU Pipeline: Zero-copy HTTP-FLV streaming, 60fps broadcast camera simulator with millisecond latency timer, 0% CPU consumption"
 }

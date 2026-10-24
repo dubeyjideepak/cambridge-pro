@@ -14,7 +14,7 @@ class HardwareVideoEncoder(
     private val width: Int = 1920,
     private val height: Int = 1080,
     private val bitrate: Int = 4_500_000, // 4.5 Mbps
-    private val frameRate: Int = 30,
+    private val frameRate: Int = 60,
     private val onEncodedFrame: (frameBytes: ByteArray, isKeyFrame: Boolean, ptsMs: Long) -> Unit
 ) {
     private val TAG = "HardwareVideoEncoder"
@@ -45,7 +45,7 @@ class HardwareVideoEncoder(
                 // Baseline Profile (strictly 0 B-frames, zero encoder lookahead delay)
                 try {
                     setInteger(MediaFormat.KEY_PROFILE, MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline)
-                    setInteger(MediaFormat.KEY_LEVEL, MediaCodecInfo.CodecProfileLevel.AVCLevel31)
+                    setInteger(MediaFormat.KEY_LEVEL, MediaCodecInfo.CodecProfileLevel.AVCLevel41)
                 } catch (_: Exception) {}
 
                 try { setInteger("max-bframes", 0) } catch (_: Exception) {}

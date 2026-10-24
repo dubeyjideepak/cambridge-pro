@@ -356,10 +356,6 @@ class MainActivity : AppCompatActivity() {
                 Log.e(TAG, "Native UVC engine error: ${error.message}", error)
             }
         })
-        nativeUvcEngine?.onDirectJpegFrame = { jpegBytes ->
-            lastDirectFrameTime = System.currentTimeMillis()
-            webServer?.pushFrame(jpegBytes)
-        }
     }
 
     // ─── USB ───────────────────────────────────────────────────────────────────

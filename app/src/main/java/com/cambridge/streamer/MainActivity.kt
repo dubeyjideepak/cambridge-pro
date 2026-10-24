@@ -68,6 +68,7 @@ class MainActivity : AppCompatActivity() {
     private var activeBackend: CameraBackend = CameraBackend.NONE
     private var videoEncoder: HardwareVideoEncoder? = null
     private var isSimulatingCamera = false
+    private var isPhoneCameraTestMode = false
     private var gpuTestSignalGenerator: com.cambridge.streamer.generator.GpuTestSignalGenerator? = null
     private var bridgeAudioPipeline: com.cambridge.streamer.audio.AudioCapturePipeline? = null
     @Volatile private var rtspAudioConfig: ByteArray? = null
@@ -295,6 +296,9 @@ class MainActivity : AppCompatActivity() {
                     if (isSimulatingCamera) {
                         stopCameraSimulation()
                     }
+                    if (isPhoneCameraTestMode) {
+                        stopPhoneCameraTest()
+                    }
                     activeBackend = CameraBackend.NATIVE_UVC
                     captureWidth = width
                     captureHeight = height
@@ -418,16 +422,25 @@ class MainActivity : AppCompatActivity() {
                         }
                     }
                 }
+                webServer?.onMjpegClientStatusChanged = { hasMjpegClients ->
+                    runOnUiThread {
+                        if (hasMjpegClients) {
+                            nativeUvcEngine?.onDirectJpegFrame = { jpegBytes ->
+                                lastDirectFrameTime = System.currentTimeMillis()
+                                webServer?.pushFrame(jpegBytes)
+                            }
+                        } else {
+                            nativeUvcEngine?.onDirectJpegFrame = null
+                        }
+                    }
+                }
                 webServer?.start()
                 Log.d(TAG, "WebMonitorServer started on port 8080")
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to start WebMonitorServer", e)
             }
         }
-        nativeUvcEngine?.onDirectJpegFrame = { jpegBytes ->
-            lastDirectFrameTime = System.currentTimeMillis()
-            webServer?.pushFrame(jpegBytes)
-        }
+        nativeUvcEngine?.onDirectJpegFrame = null
     }
 
     private fun setupBondingEngine() {
@@ -550,6 +563,11 @@ class MainActivity : AppCompatActivity() {
         // 60 FPS Camera Simulator Toggle
         binding.btnToggleSimulation.setOnClickListener {
             toggleCameraSimulation()
+        }
+
+        // Live Optical Phone Camera Test Toggle
+        binding.btnTogglePhoneCameraTest.setOnClickListener {
+            togglePhoneCameraTest()
         }
 
         // In-App Git Auto-Updater
@@ -837,16 +855,20 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun bindCamera(mode: ProductionMode) {
-        val provider = cameraProvider
-        val cameraSelector = provider?.let { resolveExternalCameraSelector(it) }
+        val provider = cameraProvider ?: return
+        val cameraSelector = if (isPhoneCameraTestMode) {
+            CameraSelector.DEFAULT_BACK_CAMERA
+        } else {
+            resolveExternalCameraSelector(provider)
+        }
 
         if (cameraSelector != null) {
-            // ── Backend 1: CameraX External HAL (Pixel, Samsung) ──
+            // ── Backend 1: CameraX External HAL (Pixel, Samsung) or Phone Camera Test ──
             activeBackend = CameraBackend.CAMERAX_EXTERNAL
             nativeUvcEngine?.clearSurfaces()
             binding.uvcViewFinder.visibility = View.GONE
 
-            provider.unbindAll()
+            provider?.unbindAll()
             val useCases = mutableListOf<androidx.camera.core.UseCase>()
 
             val targetSize = android.util.Size(
@@ -865,7 +887,7 @@ class MainActivity : AppCompatActivity() {
             useCases.add(screenPreview)
 
             val encoderSurface = videoEncoder?.inputSurface
-            if (isStreaming && encoderSurface != null && encoderSurface.isValid) {
+            if ((isStreaming || isPhoneCameraTestMode) && encoderSurface != null && encoderSurface.isValid) {
                 val encoderPreview = Preview.Builder()
                     .setTargetResolution(targetSize)
                     .build()
@@ -1128,6 +1150,9 @@ class MainActivity : AppCompatActivity() {
             stopCameraSimulation()
             showToast("60 FPS Simulator stopped")
         } else {
+            if (isPhoneCameraTestMode) {
+                stopPhoneCameraTest()
+            }
             ensureWebServerStarted()
             if (videoEncoder == null) {
                 startHardwareBridgeEncoder()
@@ -1140,6 +1165,46 @@ class MainActivity : AppCompatActivity() {
                 }
             }
             showToast("🧪 60 FPS Broadcast Simulator Started! Open /obs or /live.flv in OBS.")
+        }
+    }
+
+    private fun togglePhoneCameraTest() {
+        if (isPhoneCameraTestMode) {
+            stopPhoneCameraTest()
+            showToast("Phone Camera Test stopped")
+        } else {
+            stopCameraSimulation()
+            isPhoneCameraTestMode = true
+            ensureWebServerStarted()
+            startHardwareBridgeEncoder()
+
+            runOnUiThread {
+                binding.btnTogglePhoneCameraTest.text = "⏹ STOP PHONE CAM"
+                binding.btnTogglePhoneCameraTest.setTextColor(Color.parseColor("#FF5252"))
+                binding.tvVideoTelemetry.text = "🟢 VIDEO IN: Phone Optical Sensor @ 60 FPS"
+                binding.tvVideoTelemetry.setTextColor(Color.parseColor("#00E676"))
+            }
+
+            cameraProvider?.let { bindCamera(currentMode) }
+            showToast("📱 Phone Camera Live Test Active! Wave hands or walk past to verify 0% freeze.")
+        }
+    }
+
+    private fun stopPhoneCameraTest() {
+        isPhoneCameraTestMode = false
+        cameraProvider?.unbindAll()
+        runOnUiThread {
+            binding.btnTogglePhoneCameraTest.text = "📱 Optical Camera"
+            binding.btnTogglePhoneCameraTest.setTextColor(Color.parseColor("#80D8FF"))
+            binding.viewFinder.visibility = View.GONE
+            if (activeBackend == CameraBackend.NATIVE_UVC && nativeUvcEngine?.isCameraOpened() == true) {
+                updateUvcSurfacesForCurrentMode()
+            } else {
+                binding.uvcViewFinder.visibility = View.GONE
+                binding.layoutHdmiStandby.visibility = View.VISIBLE
+                binding.tvVideoTelemetry.text = "🎥 VIDEO IN: Standby (Connect USB Capture Card)"
+                binding.tvVideoTelemetry.setTextColor(Color.parseColor("#9E9E9E"))
+            }
         }
     }
 
@@ -1169,11 +1234,11 @@ class MainActivity : AppCompatActivity() {
         gpuTestSignalGenerator = null
         isSimulatingCamera = false
         runOnUiThread {
-            binding.btnToggleSimulation.text = "▶ TEST 60 FPS"
+            binding.btnToggleSimulation.text = "▶ 60 FPS Clock"
             binding.btnToggleSimulation.setTextColor(Color.parseColor("#00E676"))
             if (activeBackend == CameraBackend.NATIVE_UVC && nativeUvcEngine?.isCameraOpened() == true) {
                 updateUvcSurfacesForCurrentMode()
-            } else {
+            } else if (!isPhoneCameraTestMode) {
                 binding.uvcViewFinder.visibility = View.GONE
                 binding.layoutHdmiStandby.visibility = View.VISIBLE
                 binding.tvVideoTelemetry.text = "🎥 VIDEO IN: Standby (Connect USB Capture Card)"
@@ -1262,6 +1327,7 @@ class MainActivity : AppCompatActivity() {
         binding.layoutStreamPowerSaver.visibility = View.GONE
 
         stopCameraSimulation()
+        stopPhoneCameraTest()
 
         videoEncoder?.inputSurface?.let { nativeUvcEngine?.removeSurface(it) }
         videoEncoder?.stop()

@@ -41,8 +41,10 @@ class WebMonitorServer(
 
     var onClientCountChanged: ((Int) -> Unit)? = null
     var onRequestSyncFrame: (() -> Unit)? = null
+    var onMjpegClientStatusChanged: ((Boolean) -> Unit)? = null
 
     private val activeStreamClients = AtomicInteger(0)
+    private val activeMjpegClients = AtomicInteger(0)
 
     @Volatile
     private var lastSnapshotRequestTime = 0L
@@ -450,10 +452,18 @@ class WebMonitorServer(
     private fun serveMjpegStream(): Response {
         val boundary = "CAMBRIDGE_FRAME_BOUNDARY"
         activeStreamClients.incrementAndGet()
+        val count = activeMjpegClients.incrementAndGet()
+        if (count == 1) {
+            onMjpegClientStatusChanged?.invoke(true)
+        }
         notifyClientActivity()
 
         val stream = MjpegInputStream(boundary) {
             activeStreamClients.decrementAndGet()
+            val remaining = activeMjpegClients.decrementAndGet()
+            if (remaining == 0) {
+                onMjpegClientStatusChanged?.invoke(false)
+            }
             notifyClientActivity()
         }
 

@@ -1,6 +1,6 @@
 {
-  "versionCode": 19,
-  "versionName": "1.1.8",
-  "apkUrl": "https://github.com/dubeyjideepak/cambridge-pro/releases/download/v1.1.8/CamBridgePro.apk",
-  "changelog": "Pure Hardware GPU Pipeline: Zero-copy HTTP-FLV streaming, 60fps broadcast camera simulator with millisecond latency timer, 0% CPU consumption"
+  "versionCode": 20,
+  "versionName": "1.1.9",
+  "apkUrl": "https://github.com/dubeyjideepak/cambridge-pro/releases/download/v1.1.9/CamBridgePro.apk",
+  "changelog": "Zero CPU USB Ingestion: Disabled background frame callbacks during GPU streaming, added live optical camera motion test mode"
 }

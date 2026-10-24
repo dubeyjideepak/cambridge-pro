@@ -47,8 +47,74 @@ class NativeUvcCameraEngine(
     private val reusableJpegStream = java.io.ByteArrayOutputStream(1024 * 512)
     private val isCompressingFrame = java.util.concurrent.atomic.AtomicBoolean(false)
 
-    /** Optional callback with raw JPEG frame bytes straight from USB capture card for zero-latency direct bridge */
+    /** Optional callback with raw JPEG frame bytes straight from USB capture card for legacy MJPEG stream */
     var onDirectJpegFrame: ((ByteArray) -> Unit)? = null
+        set(value) {
+            field = value
+            updateFrameCallbackState()
+        }
+
+    fun updateFrameCallbackState() {
+        val helper = cameraHelper ?: return
+        val callback = onDirectJpegFrame
+        if (callback != null) {
+            try {
+                helper.setFrameCallback({ buffer ->
+                    val cb = onDirectJpegFrame ?: return@setFrameCallback
+                    if (buffer == null || buffer.remaining() <= 4) return@setFrameCallback
+
+                    if (!isCompressingFrame.compareAndSet(false, true)) {
+                        return@setFrameCallback
+                    }
+
+                    try {
+                        val b0 = buffer.get(0).toInt() and 0xFF
+                        val b1 = buffer.get(1).toInt() and 0xFF
+                        if (b0 == 0xFF && b1 == 0xD8) {
+                            val bytes = ByteArray(buffer.remaining())
+                            buffer.get(bytes)
+                            buffer.rewind()
+                            cb(bytes)
+                        } else {
+                            val curW = if (currentWidth > 0) currentWidth else 1920
+                            val curH = if (currentHeight > 0) currentHeight else 1080
+                            val remaining = buffer.remaining()
+                            if (reusableNv21Buffer == null || reusableNv21Buffer!!.size != remaining) {
+                                reusableNv21Buffer = ByteArray(remaining)
+                            }
+                            val bytes = reusableNv21Buffer!!
+                            buffer.get(bytes)
+                            buffer.rewind()
+                            try {
+                                val expectedNv21 = (curW * curH * 3) / 2
+                                val fmt = if (remaining == expectedNv21) android.graphics.ImageFormat.NV21 else android.graphics.ImageFormat.YUY2
+                                val yuvImage = android.graphics.YuvImage(bytes, fmt, curW, curH, null)
+                                synchronized(reusableJpegStream) {
+                                    reusableJpegStream.reset()
+                                    yuvImage.compressToJpeg(android.graphics.Rect(0, 0, curW, curH), 60, reusableJpegStream)
+                                    cb(reusableJpegStream.toByteArray())
+                                }
+                            } catch (e: Exception) {
+                                Log.w(TAG, "YUV frame conversion to JPEG error", e)
+                            }
+                        }
+                    } finally {
+                        isCompressingFrame.set(false)
+                    }
+                }, com.serenegiant.usb.UVCCamera.PIXEL_FORMAT_NV21)
+                Log.d(TAG, "UVC frame callback ENABLED (legacy MJPEG client active)")
+            } catch (e: Exception) {
+                Log.w(TAG, "Error enabling frame callback", e)
+            }
+        } else {
+            try {
+                helper.setFrameCallback(null, 0)
+                Log.d(TAG, "UVC frame callback DISABLED (Zero CPU, pure GPU ANativeWindow mode active)")
+            } catch (e: Exception) {
+                Log.w(TAG, "Error disabling frame callback", e)
+            }
+        }
+    }
 
     init {
         try {
@@ -124,65 +190,10 @@ class NativeUvcCameraEngine(
                             }
                         }
 
-                        // Register direct frame callback with non-blocking rate limiter for zero-lag streaming
-                        try {
-                            var loggedFirstFrame = false
-                            helper.setFrameCallback({ buffer ->
-                                val callback = onDirectJpegFrame ?: return@setFrameCallback
-                                if (buffer == null || buffer.remaining() <= 4) return@setFrameCallback
-
-                                // Non-blocking frame drop: If previous frame is still being processed/transmitted,
-                                // drop this frame instantly so latency NEVER accumulates!
-                                if (!isCompressingFrame.compareAndSet(false, true)) {
-                                    return@setFrameCallback
-                                }
-
-                                try {
-                                    val b0 = buffer.get(0).toInt() and 0xFF
-                                    val b1 = buffer.get(1).toInt() and 0xFF
-                                    if (!loggedFirstFrame) {
-                                        loggedFirstFrame = true
-                                        val isMjpeg = (b0 == 0xFF && b1 == 0xD8)
-                                        Log.i(TAG, "⚡ First USB frame received: isHardwareMJPEG=$isMjpeg, bytes=${buffer.remaining()}")
-                                    }
-                                    if (b0 == 0xFF && b1 == 0xD8) {
-                                        // Direct MJPEG payload - 100% Pure pass-through
-                                        val bytes = ByteArray(buffer.remaining())
-                                        buffer.get(bytes)
-                                        buffer.rewind()
-                                        callback(bytes)
-                                    } else {
-                                        // Planar NV21 payload
-                                        val curW = if (currentWidth > 0) currentWidth else 1920
-                                        val curH = if (currentHeight > 0) currentHeight else 1080
-                                        val remaining = buffer.remaining()
-                                        if (reusableNv21Buffer == null || reusableNv21Buffer!!.size != remaining) {
-                                            reusableNv21Buffer = ByteArray(remaining)
-                                        }
-                                        val bytes = reusableNv21Buffer!!
-                                        buffer.get(bytes)
-                                        buffer.rewind()
-                                        try {
-                                            val expectedNv21 = (curW * curH * 3) / 2
-                                            val fmt = if (remaining == expectedNv21) android.graphics.ImageFormat.NV21 else android.graphics.ImageFormat.YUY2
-                                            val yuvImage = android.graphics.YuvImage(bytes, fmt, curW, curH, null)
-                                            synchronized(reusableJpegStream) {
-                                                reusableJpegStream.reset()
-                                                // Quality 60: 3x faster compression than 75, 50% smaller payload, 0ms lag, zero motion freezing!
-                                                yuvImage.compressToJpeg(android.graphics.Rect(0, 0, curW, curH), 60, reusableJpegStream)
-                                                callback(reusableJpegStream.toByteArray())
-                                            }
-                                        } catch (e: Exception) {
-                                            Log.w(TAG, "YUV frame conversion to JPEG error", e)
-                                        }
-                                    }
-                                } finally {
-                                    isCompressingFrame.set(false)
-                                }
-                            }, com.serenegiant.usb.UVCCamera.PIXEL_FORMAT_NV21)
-                        } catch (e: Exception) {
-                            Log.w(TAG, "Direct frame callback error", e)
-                        }
+                        // Only register CPU frame callback if an MJPEG client is actively requesting it.
+                        // In normal GPU streaming (HTTP-FLV / OBS), frame callback is DISABLED to ensure 0.0% CPU usage
+                        // and let USB packets flow straight into MediaCodec's ANativeWindow surface!
+                        updateFrameCallbackState()
 
                         helper.startPreview()
 

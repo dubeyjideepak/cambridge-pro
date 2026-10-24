@@ -489,7 +489,7 @@
                     </LinearLayout>
                 </LinearLayout>
 
-                <!-- 60 FPS Camera Simulator Card (No Hardware Needed to Test) -->
+                <!-- 60 FPS Camera Simulator & Optical Test Card -->
                 <LinearLayout
                     android:id="@+id/layoutSimulationCard"
                     android:layout_width="match_parent"
@@ -499,39 +499,52 @@
                     android:orientation="vertical"
                     android:padding="12dp">
 
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="🧪 ZERO-HARDWARE BENCHMARK &amp; MOTION TESTING"
+                        android:textColor="#00E676"
+                        android:textSize="11sp"
+                        android:textStyle="bold" />
+
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:gravity="center_vertical"
+                        android:layout_marginTop="8dp"
                         android:orientation="horizontal">
-
-                        <TextView
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:text="🧪 60 FPS Camera Simulator"
-                            android:textColor="#00E676"
-                            android:textSize="12sp"
-                            android:textStyle="bold" />
 
                         <Button
                             android:id="@+id/btnToggleSimulation"
-                            android:layout_width="wrap_content"
-                            android:layout_height="34dp"
+                            android:layout_width="0dp"
+                            android:layout_height="36dp"
+                            android:layout_weight="1"
                             android:background="@drawable/bg_segmented_pill"
-                            android:paddingHorizontal="12dp"
-                            android:text="▶ TEST 60 FPS"
+                            android:paddingHorizontal="6dp"
+                            android:text="▶ 60 FPS Clock"
                             android:textColor="#00E676"
-                            android:textSize="11sp"
+                            android:textSize="10sp"
+                            android:textStyle="bold" />
+
+                        <Button
+                            android:id="@+id/btnTogglePhoneCameraTest"
+                            android:layout_width="0dp"
+                            android:layout_height="36dp"
+                            android:layout_marginStart="8dp"
+                            android:layout_weight="1"
+                            android:background="@drawable/bg_segmented_pill"
+                            android:paddingHorizontal="6dp"
+                            android:text="📱 Optical Camera"
+                            android:textColor="#80D8FF"
+                            android:textSize="10sp"
                             android:textStyle="bold" />
                     </LinearLayout>
 
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
+                        android:layout_marginTop="6dp"
                         android:lineSpacingExtra="1dp"
-                        android:text="Renders an animated 60 FPS studio test pattern with millisecond latency timer directly through the phone's GPU hardware encoder. Test wireless smoothness on your desk without plugging in any camera!"
+                        android:text="• 60 FPS Clock: Tests glass-to-glass latency (&lt;35ms) and 60fps fluidity with millisecond timer.\n• Optical Camera: Uses phone back camera to test REAL human motion &amp; walk-bys without any HDMI camera attached!"
                         android:textColor="@color/text_secondary"
                         android:textSize="10sp" />
                 </LinearLayout>

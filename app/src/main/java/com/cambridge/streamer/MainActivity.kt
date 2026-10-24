@@ -83,6 +83,7 @@ class MainActivity : AppCompatActivity() {
     private var captureWidth = 1920
     private var captureHeight = 1080
     private var isScreenPreviewPeeking = false
+    @Volatile private var isWifiStreamingActive = false
     private var lastDirectFrameTime = 0L
     private var pixelCopyJob: Job? = null
     private val pixelCopyHandler = Handler(Looper.getMainLooper())
@@ -302,7 +303,6 @@ class MainActivity : AppCompatActivity() {
                     binding.tvUsbStatus.setTextColor(Color.parseColor("#00E676"))
                     binding.layoutHdmiStandby.visibility = View.GONE
                     binding.viewFinder.visibility = View.GONE
-                    binding.uvcViewFinder.visibility = View.VISIBLE
                     updateUvcSurfacesForCurrentMode()
                 }
             }
@@ -395,6 +395,18 @@ class MainActivity : AppCompatActivity() {
             try {
                 webServer = WebMonitorServer(port = 8080)
                 webServer?.isStreaming = true
+                webServer?.onClientCountChanged = { activeCount ->
+                    runOnUiThread {
+                        val hasClients = (activeCount > 0)
+                        if (hasClients != isWifiStreamingActive) {
+                            isWifiStreamingActive = hasClients
+                            updateUvcSurfacesForCurrentMode()
+                            if (hasClients) {
+                                showToast("⚡ Wi-Fi stream active! Screen preview paused to save GPU & battery.")
+                            }
+                        }
+                    }
+                }
                 webServer?.start()
                 Log.d(TAG, "WebMonitorServer started on port 8080")
             } catch (e: Exception) {
@@ -524,7 +536,8 @@ class MainActivity : AppCompatActivity() {
 
         // 1-Tap Screen Preview Toggle
         binding.btnTogglePreview.setOnClickListener {
-            if (isStreaming) {
+            val isStreamingActive = isStreaming || isWifiStreamingActive
+            if (isStreamingActive) {
                 isScreenPreviewPeeking = !isScreenPreviewPeeking
                 updateUvcSurfacesForCurrentMode()
                 val stateText = if (isScreenPreviewPeeking) "👁️ Screen Preview Active (Peeking)" else "⚡ Preview Stopped (GPU/CPU Power Saver Active)"
@@ -928,10 +941,11 @@ class MainActivity : AppCompatActivity() {
         val holderSurface = binding.uvcViewFinder.holder.surface
         val encoderSurface = videoEncoder?.inputSurface
 
-        // When streaming: Screen preview is STOPPED by default to eliminate CPU/GPU rendering load and battery heat.
+        // When streaming (button pressed or Wi-Fi client connected): Screen preview is STOPPED by default.
         // User can tap "👁️ Preview" pill to peek at framing anytime.
         // When not streaming: Preview is active so user can frame the camera.
-        val shouldShowPreview = if (isStreaming) isScreenPreviewPeeking else true
+        val isStreamingActive = isStreaming || isWifiStreamingActive
+        val shouldShowPreview = if (isStreamingActive) isScreenPreviewPeeking else true
 
         if (shouldShowPreview) {
             binding.layoutStreamPowerSaver.visibility = View.GONE
@@ -940,14 +954,14 @@ class MainActivity : AppCompatActivity() {
                 engine.addSurface(holderSurface)
                 Log.d(TAG, "Screen preview attached")
             }
-            binding.btnTogglePreview.text = if (isStreaming) "👁️ Preview: PEEK ON" else "👁️ Preview: ON"
+            binding.btnTogglePreview.text = if (isStreamingActive) "👁️ Preview: PEEK ON" else "👁️ Preview: ON"
             binding.btnTogglePreview.setTextColor(Color.parseColor("#00E676"))
         } else {
             if (holderSurface.isValid) {
                 engine.removeSurface(holderSurface)
             }
             binding.uvcViewFinder.visibility = View.GONE
-            if (isStreaming) {
+            if (isStreamingActive) {
                 binding.layoutStreamPowerSaver.visibility = View.VISIBLE
                 binding.btnTogglePreview.text = "⚡ Preview: OFF (Cold)"
                 binding.btnTogglePreview.setTextColor(Color.parseColor("#80D8FF"))
@@ -1271,9 +1285,18 @@ class MainActivity : AppCompatActivity() {
             while (isActive) {
                 delay(40) // ~25 FPS fallback rate
                 val now = System.currentTimeMillis()
-                val isPreviewActive = if (isStreaming) isScreenPreviewPeeking else true
+                val ws = webServer
+                if (ws != null) {
+                    val activeWifi = ws.isClientStreamingActive()
+                    if (activeWifi != isWifiStreamingActive) {
+                        isWifiStreamingActive = activeWifi
+                        runOnUiThread { updateUvcSurfacesForCurrentMode() }
+                    }
+                }
+                val isStreamingActive = isStreaming || isWifiStreamingActive
+                val isPreviewActive = if (isStreamingActive) isScreenPreviewPeeking else true
                 if (now - lastDirectFrameTime > 400L && activeBackend == CameraBackend.NATIVE_UVC && isPreviewActive) {
-                    val ws = webServer ?: continue
+                    if (ws == null) continue
                     val surfaceView = binding.uvcViewFinder
                     val surface = surfaceView.holder.surface
                     if (surface != null && surface.isValid && surfaceView.width > 0 && surfaceView.height > 0) {

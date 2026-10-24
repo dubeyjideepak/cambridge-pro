@@ -25,6 +25,28 @@ class WebMonitorServer(
     @Volatile
     var isStreaming = true
 
+    var onClientCountChanged: ((Int) -> Unit)? = null
+
+    @Volatile
+    private var lastSnapshotRequestTime = 0L
+
+    fun isClientStreamingActive(): Boolean {
+        val hasMjpegClients = clientQueues.isNotEmpty()
+        val hasRecentSnapshot = (System.currentTimeMillis() - lastSnapshotRequestTime) < 3500L
+        return hasMjpegClients || hasRecentSnapshot
+    }
+
+    private fun notifyClientActivity() {
+        onClientCountChanged?.invoke(if (isClientStreamingActive()) 1 else 0)
+    }
+
+    override fun createClientHandler(finalSocket: java.net.Socket, inputStream: java.io.InputStream): ClientHandler {
+        try {
+            finalSocket.tcpNoDelay = true
+        } catch (_: Exception) {}
+        return super.createClientHandler(finalSocket, inputStream)
+    }
+
     private val clientQueues = CopyOnWriteArrayList<ArrayBlockingQueue<ByteArray>>()
     @Volatile
     private var latestSnapshot: ByteArray? = null
@@ -74,12 +96,78 @@ class WebMonitorServer(
 
         return when {
             uri == "/obs" || uri == "/obs.html" -> {
+                notifyClientActivity()
                 val html = """
                     <!DOCTYPE html>
                     <html lang="en">
                     <head>
                         <meta charset="utf-8">
                         <title>CamBridge Pro — OBS Zero-Lag Feed</title>
+                        <style>
+                            html, body {
+                                margin: 0;
+                                padding: 0;
+                                width: 100%;
+                                height: 100%;
+                                overflow: hidden;
+                                background-color: #000;
+                            }
+                            #viewport {
+                                width: 100vw;
+                                height: 100vh;
+                                object-fit: contain;
+                                display: block;
+                            }
+                        </style>
+                    </head>
+                    <body>
+                        <canvas id="viewport"></canvas>
+                        <script>
+                            const canvas = document.getElementById('viewport');
+                            const ctx = canvas.getContext('2d', { alpha: false, desynchronized: true });
+                            let pending = false;
+                            let active = true;
+
+                            function loadNextFrame() {
+                                if (pending || !active) return;
+                                pending = true;
+
+                                const img = new Image();
+                                img.onload = () => {
+                                    requestAnimationFrame(() => {
+                                        if (canvas.width !== img.naturalWidth || canvas.height !== img.naturalHeight) {
+                                            canvas.width = img.naturalWidth;
+                                            canvas.height = img.naturalHeight;
+                                        }
+                                        ctx.drawImage(img, 0, 0);
+                                        pending = false;
+                                        loadNextFrame();
+                                    });
+                                };
+                                img.onerror = () => {
+                                    pending = false;
+                                    setTimeout(loadNextFrame, 40);
+                                };
+                                img.src = '/snapshot.jpg?t=' + performance.now();
+                            }
+
+                            loadNextFrame();
+                        </script>
+                    </body>
+                    </html>
+                """.trimIndent()
+                val resp = newFixedLengthResponse(Response.Status.OK, "text/html", html)
+                resp.addHeader("Cache-Control", "no-cache, no-store, must-revalidate")
+                resp
+            }
+            uri == "/obs-legacy" || uri == "/obs-mjpeg" -> {
+                notifyClientActivity()
+                val html = """
+                    <!DOCTYPE html>
+                    <html lang="en">
+                    <head>
+                        <meta charset="utf-8">
+                        <title>CamBridge Pro — OBS Feed (Legacy Fallback)</title>
                         <style>
                             html, body {
                                 margin: 0;
@@ -99,27 +187,6 @@ class WebMonitorServer(
                     </head>
                     <body>
                         <img id="stream" src="/stream.mjpeg" alt="Live Feed" />
-                        <script>
-                            const img = document.getElementById('stream');
-                            let fallbackActive = false;
-                            function startSnapshotPolling() {
-                                if (fallbackActive) return;
-                                fallbackActive = true;
-                                console.warn('CamBridge: Switching to fast snapshot polling fallback');
-                                setInterval(() => {
-                                    img.src = '/snapshot.jpg?t=' + Date.now();
-                                }, 33);
-                            }
-                            img.onerror = function() {
-                                startSnapshotPolling();
-                            };
-                            // Watchdog: If image hasn't loaded after 2s, initiate polling
-                            setTimeout(() => {
-                                if (!img.complete || img.naturalWidth === 0) {
-                                    startSnapshotPolling();
-                                }
-                            }, 2000);
-                        </script>
                     </body>
                     </html>
                 """.trimIndent()
@@ -201,20 +268,9 @@ class WebMonitorServer(
                         </footer>
                         <script>
                             const img = document.getElementById('stream');
-                            let fallbackActive = false;
-                            function startSnapshotPolling() {
-                                if (fallbackActive) return;
-                                fallbackActive = true;
-                                setInterval(() => {
-                                    img.src = '/snapshot.jpg?t=' + Date.now();
-                                }, 33);
-                            }
-                            img.onerror = startSnapshotPolling;
-                            setTimeout(() => {
-                                if (!img.complete || img.naturalWidth === 0) {
-                                    startSnapshotPolling();
-                                }
-                            }, 2000);
+                            img.onerror = () => {
+                                setTimeout(() => { img.src = '/stream.mjpeg?t=' + Date.now(); }, 1000);
+                            };
                         </script>
                     </body>
                     </html>
@@ -227,6 +283,8 @@ class WebMonitorServer(
                 serveMjpegStream()
             }
             uri == "/snapshot.jpg" -> {
+                lastSnapshotRequestTime = System.currentTimeMillis()
+                notifyClientActivity()
                 val bytes = latestSnapshot ?: getPlaceholderJpeg()
                 val resp = newFixedLengthResponse(Response.Status.OK, "image/jpeg", ByteArrayInputStream(bytes), bytes.size.toLong())
                 resp.addHeader("Cache-Control", "no-cache, no-store, must-revalidate")
@@ -248,6 +306,7 @@ class WebMonitorServer(
         val seed = latestSnapshot ?: getPlaceholderJpeg()
         queue.offer(seed)
         clientQueues.add(queue)
+        notifyClientActivity()
 
         val stream = object : InputStream() {
             private var currentChunk: ByteArrayInputStream? = null
@@ -288,6 +347,7 @@ class WebMonitorServer(
             override fun close() {
                 isClosed = true
                 clientQueues.remove(queue)
+                notifyClientActivity()
                 super.close()
             }
         }

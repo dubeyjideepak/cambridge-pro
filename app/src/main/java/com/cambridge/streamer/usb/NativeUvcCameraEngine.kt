@@ -43,6 +43,9 @@ class NativeUvcCameraEngine(
     var currentWidth: Int = 1920
     var currentHeight: Int = 1080
 
+    private var reusableNv21Buffer: ByteArray? = null
+    private val reusableJpegStream = java.io.ByteArrayOutputStream(1024 * 512)
+
     /** Optional callback with raw JPEG frame bytes straight from USB capture card for zero-latency direct bridge */
     var onDirectJpegFrame: ((ByteArray) -> Unit)? = null
 
@@ -138,16 +141,21 @@ class NativeUvcCameraEngine(
                                         val curW = if (currentWidth > 0) currentWidth else 1920
                                         val curH = if (currentHeight > 0) currentHeight else 1080
                                         val remaining = buffer.remaining()
-                                        val bytes = ByteArray(remaining)
+                                        if (reusableNv21Buffer == null || reusableNv21Buffer!!.size != remaining) {
+                                            reusableNv21Buffer = ByteArray(remaining)
+                                        }
+                                        val bytes = reusableNv21Buffer!!
                                         buffer.get(bytes)
                                         buffer.rewind()
                                         try {
                                             val expectedNv21 = (curW * curH * 3) / 2
                                             val fmt = if (remaining == expectedNv21) android.graphics.ImageFormat.NV21 else android.graphics.ImageFormat.YUY2
                                             val yuvImage = android.graphics.YuvImage(bytes, fmt, curW, curH, null)
-                                            val outStream = java.io.ByteArrayOutputStream(curW * curH / 8)
-                                            yuvImage.compressToJpeg(android.graphics.Rect(0, 0, curW, curH), 75, outStream)
-                                            callback(outStream.toByteArray())
+                                            synchronized(reusableJpegStream) {
+                                                reusableJpegStream.reset()
+                                                yuvImage.compressToJpeg(android.graphics.Rect(0, 0, curW, curH), 75, reusableJpegStream)
+                                                callback(reusableJpegStream.toByteArray())
+                                            }
                                         } catch (e: Exception) {
                                             Log.w(TAG, "YUV frame conversion to JPEG error", e)
                                         }

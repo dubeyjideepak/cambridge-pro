@@ -1,6 +1,6 @@
 {
-  "versionCode": 15,
-  "versionName": "1.1.4",
-  "apkUrl": "https://github.com/dubeyjideepak/cambridge-pro/releases/download/v1.1.4/CamBridgePro.apk",
-  "changelog": "Auto-pause screen preview during streaming to save 100% display GPU/CPU and prevent heating"
+  "versionCode": 16,
+  "versionName": "1.1.5",
+  "apkUrl": "https://github.com/dubeyjideepak/cambridge-pro/releases/download/v1.1.5/CamBridgePro.apk",
+  "changelog": "Auto-pause preview on Wi-Fi connect, zero-flicker double-buffered canvas, and buffer pool optimization"
 }

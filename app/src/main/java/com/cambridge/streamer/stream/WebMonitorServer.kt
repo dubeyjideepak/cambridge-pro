@@ -378,27 +378,23 @@ class WebMonitorServer(
         }
 
         private fun fetchFreshFrame(): ByteArray? {
-            if (isClosed) return null
             synchronized(frameSignal) {
-                // If camera already produced a fresh frame, take it instantly!
-                if (latestFrameSequence != lastSentSequence && latestFrame != null) {
-                    lastSentSequence = latestFrameSequence
-                    return latestFrame
+                while (!isClosed) {
+                    if (latestFrame != null && latestFrameSequence != lastSentSequence) {
+                        lastSentSequence = latestFrameSequence
+                        return latestFrame
+                    }
+                    try {
+                        frameSignal.wait(200)
+                    } catch (_: InterruptedException) {
+                        if (isClosed) return null
+                    }
+                    if (latestFrame == null) {
+                        return getPlaceholderJpeg()
+                    }
                 }
-
-                // Otherwise wait at most 40ms for camera hardware signal
-                try {
-                    frameSignal.wait(40)
-                } catch (_: InterruptedException) {
-                    return null
-                }
-
-                if (latestFrame != null) {
-                    lastSentSequence = latestFrameSequence
-                    return latestFrame
-                }
+                return null
             }
-            return latestSnapshot ?: getPlaceholderJpeg()
         }
 
         override fun close() {

@@ -1,6 +1,6 @@
 {
-  "versionCode": 17,
-  "versionName": "1.1.6",
-  "apkUrl": "https://github.com/dubeyjideepak/cambridge-pro/releases/download/v1.1.6/CamBridgePro.apk",
-  "changelog": "Pure Zero-Processing Pass-Through: direct hardware MJPEG stream, zero re-compression, atomic frame signalling, eliminated stalls & GC pauses"
+  "versionCode": 18,
+  "versionName": "1.1.7",
+  "apkUrl": "https://github.com/dubeyjideepak/cambridge-pro/releases/download/v1.1.7/CamBridgePro.apk",
+  "changelog": "Zero-Freeze Engine: Non-blocking rate limiter, NV21 optimized JPEG compression, eradicated socket EOF disconnects and duplicate frames"
 }

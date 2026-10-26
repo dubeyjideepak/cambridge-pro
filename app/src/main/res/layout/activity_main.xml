@@ -655,23 +655,36 @@
                             android:layout_height="36dp"
                             android:layout_weight="1"
                             android:background="@drawable/bg_segmented_pill"
-                            android:paddingHorizontal="6dp"
+                            android:paddingHorizontal="4dp"
                             android:text="▶ 60 FPS Clock"
                             android:textColor="#00E676"
-                            android:textSize="10sp"
+                            android:textSize="9.5sp"
+                            android:textStyle="bold" />
+
+                        <Button
+                            android:id="@+id/btnToggleVideoFile"
+                            android:layout_width="0dp"
+                            android:layout_height="36dp"
+                            android:layout_marginStart="6dp"
+                            android:layout_weight="1"
+                            android:background="@drawable/bg_segmented_pill"
+                            android:paddingHorizontal="4dp"
+                            android:text="🎬 60 FPS File"
+                            android:textColor="#FFD54F"
+                            android:textSize="9.5sp"
                             android:textStyle="bold" />
 
                         <Button
                             android:id="@+id/btnTogglePhoneCameraTest"
                             android:layout_width="0dp"
                             android:layout_height="36dp"
-                            android:layout_marginStart="8dp"
+                            android:layout_marginStart="6dp"
                             android:layout_weight="1"
                             android:background="@drawable/bg_segmented_pill"
-                            android:paddingHorizontal="6dp"
-                            android:text="📱 Optical Camera"
+                            android:paddingHorizontal="4dp"
+                            android:text="📱 Optical Cam"
                             android:textColor="#80D8FF"
-                            android:textSize="10sp"
+                            android:textSize="9.5sp"
                             android:textStyle="bold" />
                     </LinearLayout>
 
@@ -680,7 +693,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="6dp"
                         android:lineSpacingExtra="1dp"
-                        android:text="• 60 FPS Clock: Tests glass-to-glass latency (&lt;35ms) and 60fps fluidity with millisecond timer.\n• Optical Camera: Uses phone back camera to test REAL human motion &amp; walk-bys without any HDMI camera attached!"
+                        android:text="• 60 FPS Clock: Tests millisecond latency &amp; 60fps fluidity with live bouncing graphics.\n• 60 FPS File: Pick ANY high-action 1080p60 MP4 to simulate a high-end 4K camera feed!\n• Optical Cam: Uses phone optical lens to test live human walk-bys &amp; motion."
                         android:textColor="@color/text_secondary"
                         android:textSize="10sp" />
                 </LinearLayout>

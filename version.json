@@ -1,6 +1,6 @@
 {
-  "versionCode": 32,
-  "versionName": "1.4.0",
-  "apkUrl": "https://github.com/dubeyjideepak/cambridge-pro/releases/download/v1.4.0/CamBridgePro.apk",
-  "changelog": "v1.4.0 Native SRT Engine for OBS Studio: Direct SRT broadcast from phone to OBS Media Source (srt://0.0.0.0:8890?mode=listener) with ARQ hardware packet recovery. Zero visible freezes on volatile Wi-Fi networks."
+  "versionCode": 33,
+  "versionName": "1.4.1",
+  "apkUrl": "https://github.com/dubeyjideepak/cambridge-pro/releases/download/v1.4.1/CamBridgePro.apk",
+  "changelog": "v1.4.1 High-Grade 60 FPS Video File Feeder: Loop any 1080p60 high-action video file from phone storage directly through hardware H.264 VPU into WebRTC and SRT streams. Direct 60 FPS clock simulator routing."
 }

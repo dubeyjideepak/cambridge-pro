@@ -13,6 +13,8 @@ import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.hardware.usb.UsbDevice
 import android.hardware.usb.UsbManager
+import android.media.MediaPlayer
+import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -140,6 +142,18 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
+
+    // Video File Picker for 60 FPS High-Grade Motion Simulation
+    private val videoPickerLauncher = registerForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri != null) {
+            startVideoFileSimulation(uri)
+        }
+    }
+
+    private var videoPlayer: MediaPlayer? = null
+    private var isPlayingVideoFile = false
 
     private var qrTimerJob: Job? = null
 
@@ -283,6 +297,9 @@ class MainActivity : AppCompatActivity() {
         srtEngine?.release()
         srtEngine = null
         srtSurface = null
+        // ── Video player cleanup ──────────────────────────────────────────────────
+        try { videoPlayer?.release() } catch (_: Exception) {}
+        videoPlayer = null
         // ──────────────────────────────────────────────────────────────────────────
         nativeUvcEngine?.onDirectJpegFrame = null
         nativeUvcEngine?.stop()
@@ -324,6 +341,9 @@ class MainActivity : AppCompatActivity() {
                     }
                     if (isPhoneCameraTestMode) {
                         stopPhoneCameraTest()
+                    }
+                    if (isPlayingVideoFile) {
+                        stopVideoFileSimulation()
                     }
                     activeBackend = CameraBackend.NATIVE_UVC
                     captureWidth = width
@@ -640,6 +660,15 @@ class MainActivity : AppCompatActivity() {
         // 60 FPS Camera Simulator Toggle
         binding.btnToggleSimulation.setOnClickListener {
             toggleCameraSimulation()
+        }
+
+        // 60 FPS Video File Simulation Toggle
+        binding.btnToggleVideoFile.setOnClickListener {
+            if (isPlayingVideoFile) {
+                stopVideoFileSimulation()
+            } else {
+                videoPickerLauncher.launch("video/*")
+            }
         }
 
         // Live Optical Phone Camera Test Toggle
@@ -1344,21 +1373,102 @@ class MainActivity : AppCompatActivity() {
             stopCameraSimulation()
             showToast("60 FPS Simulator stopped")
         } else {
-            if (isPhoneCameraTestMode) {
-                stopPhoneCameraTest()
-            }
+            if (isPhoneCameraTestMode) stopPhoneCameraTest()
+            if (isPlayingVideoFile) stopVideoFileSimulation()
             ensureWebServerStarted()
-            if (videoEncoder == null) {
-                startHardwareBridgeEncoder()
+
+            val targetSurface = when {
+                srtSurface != null && srtSurface!!.isValid -> srtSurface
+                webRtcEngine?.inputSurface != null && webRtcEngine!!.inputSurface!!.isValid -> webRtcEngine!!.inputSurface
+                videoEncoder?.inputSurface != null && videoEncoder!!.inputSurface!!.isValid -> videoEncoder!!.inputSurface
+                else -> null
+            }
+
+            if (targetSurface != null && targetSurface.isValid) {
+                val encWidth = if (captureWidth > 0) captureWidth else 1920
+                val encHeight = if (captureHeight > 0) captureHeight else 1080
+                startCameraSimulationInternal(targetSurface, encWidth, encHeight)
+                showToast("🧪 60 FPS Clock Simulator Started! View in Chrome (/webrtc) or OBS.")
             } else {
+                startHardwareBridgeEncoder()
                 val encSurface = videoEncoder?.inputSurface
                 if (encSurface != null && encSurface.isValid) {
                     val encWidth = if (captureWidth > 0) captureWidth else 1920
                     val encHeight = if (captureHeight > 0) captureHeight else 1080
                     startCameraSimulationInternal(encSurface, encWidth, encHeight)
+                    showToast("🧪 60 FPS Clock Simulator Started! View in Chrome (/webrtc) or OBS.")
+                } else {
+                    showToast("Waiting for engine surface...")
                 }
             }
-            showToast("🧪 60 FPS Broadcast Simulator Started! Open /obs or /live.flv in OBS.")
+        }
+    }
+
+    private fun startVideoFileSimulation(uri: Uri) {
+        stopCameraSimulation()
+        stopPhoneCameraTest()
+        stopVideoFileSimulation()
+        ensureWebServerStarted()
+
+        val targetSurface = when {
+            srtSurface != null && srtSurface!!.isValid -> srtSurface
+            webRtcEngine?.inputSurface != null && webRtcEngine!!.inputSurface!!.isValid -> webRtcEngine!!.inputSurface
+            videoEncoder?.inputSurface != null && videoEncoder!!.inputSurface!!.isValid -> videoEncoder!!.inputSurface
+            else -> null
+        }
+
+        if (targetSurface == null || !targetSurface.isValid) {
+            showToast("Waiting for streaming engine surface...")
+            return
+        }
+
+        try {
+            videoPlayer = MediaPlayer().apply {
+                setDataSource(this@MainActivity, uri)
+                setSurface(targetSurface)
+                isLooping = true
+                setOnPreparedListener { mp ->
+                    mp.start()
+                    isPlayingVideoFile = true
+                    runOnUiThread {
+                        binding.btnToggleVideoFile.text = "⏹ STOP VIDEO"
+                        binding.btnToggleVideoFile.setTextColor(Color.parseColor("#FF5252"))
+                        binding.tvVideoTelemetry.text = "🟢 VIDEO FILE: 1080p @ 60 FPS (Hardware Decoded Loop)"
+                        binding.tvVideoTelemetry.setTextColor(Color.parseColor("#00E676"))
+                        binding.layoutHdmiStandby.visibility = View.GONE
+                        showToast("🎬 60 FPS Video Loop Active! Check OBS / Chrome.")
+                    }
+                }
+                setOnErrorListener { _, what, extra ->
+                    Log.e(TAG, "MediaPlayer error: what=$what, extra=$extra")
+                    stopVideoFileSimulation()
+                    true
+                }
+                prepareAsync()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to start video file simulation", e)
+            showToast("Error playing video: ${e.message}")
+        }
+    }
+
+    private fun stopVideoFileSimulation() {
+        isPlayingVideoFile = false
+        try {
+            videoPlayer?.stop()
+            videoPlayer?.release()
+        } catch (_: Exception) {}
+        videoPlayer = null
+        runOnUiThread {
+            binding.btnToggleVideoFile.text = "🎬 60 FPS File"
+            binding.btnToggleVideoFile.setTextColor(Color.parseColor("#FFD54F"))
+            if (activeBackend == CameraBackend.NATIVE_UVC && nativeUvcEngine?.isCameraOpened() == true) {
+                updateUvcSurfacesForCurrentMode()
+            } else if (!isPhoneCameraTestMode && !isSimulatingCamera) {
+                binding.layoutHdmiStandby.visibility = View.VISIBLE
+                binding.tvVideoTelemetry.text = "🎥 VIDEO IN: Standby (Connect USB Capture Card)"
+                binding.tvVideoTelemetry.setTextColor(Color.parseColor("#9E9E9E"))
+            }
         }
     }
 
@@ -1368,6 +1478,7 @@ class MainActivity : AppCompatActivity() {
             showToast("Phone Camera Test stopped")
         } else {
             stopCameraSimulation()
+            if (isPlayingVideoFile) stopVideoFileSimulation()
             isPhoneCameraTestMode = true
             ensureWebServerStarted()
 

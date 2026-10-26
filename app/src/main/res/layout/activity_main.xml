@@ -530,6 +530,78 @@
                         </LinearLayout>
                     </LinearLayout>
 
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:layout_marginVertical="10dp"
+                        android:background="#26FFFFFF" />
+
+                    <!-- OPTION 3: Direct SRT Stream to OBS Studio -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="🛡️ OPTION 3: DIRECT SRT TO OBS STUDIO (ARQ Zero-Freeze)"
+                            android:textColor="#FFD54F"
+                            android:textSize="11sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:text="OBS ➔ Sources '+' ➔ Media Source ➔ Uncheck 'Local File' ➔ Input: srt://0.0.0.0:8890?mode=listener ➔ Format: mpegts"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="10sp" />
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="6dp"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal">
+
+                            <EditText
+                                android:id="@+id/etSrtTargetIp"
+                                android:layout_width="0dp"
+                                android:layout_height="36dp"
+                                android:layout_weight="1"
+                                android:background="@drawable/bg_input_box"
+                                android:fontFamily="monospace"
+                                android:hint="Laptop IP (e.g. 192.168.1.50)"
+                                android:paddingHorizontal="10dp"
+                                android:textColor="#FFFFFF"
+                                android:textColorHint="#60FFFFFF"
+                                android:textSize="12sp" />
+
+                            <Button
+                                android:id="@+id/btnToggleSrt"
+                                android:layout_width="wrap_content"
+                                android:layout_height="36dp"
+                                android:layout_marginStart="8dp"
+                                android:background="@drawable/bg_segmented_pill"
+                                android:paddingHorizontal="14dp"
+                                android:text="🚀 PUSH SRT"
+                                android:textColor="#00E676"
+                                android:textSize="11sp"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+
+                        <TextView
+                            android:id="@+id/tvSrtStatus"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:fontFamily="monospace"
+                            android:text="⚡ SRT Standby (Enter Laptop IP &amp; click Push)"
+                            android:textColor="#B0BEC5"
+                            android:textSize="10sp" />
+                    </LinearLayout>
+
                     <!-- Hidden legacy fields to preserve view binding -->
                     <TextView
                         android:id="@+id/tvDirectWebUrl"

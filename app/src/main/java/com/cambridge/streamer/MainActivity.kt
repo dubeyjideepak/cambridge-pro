@@ -18,6 +18,7 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import android.view.PixelCopy
+import android.view.Surface
 import android.view.SurfaceHolder
 import android.view.View
 import android.view.WindowManager
@@ -80,6 +81,10 @@ class MainActivity : AppCompatActivity() {
     // ── WebRTC Zero-Freeze UDP Bridge ──────────────────────────────────────────
     private var webRtcEngine: com.cambridge.streamer.stream.WebRtcBridgeEngine? = null
     private var webRtcSignalingServer: com.cambridge.streamer.stream.WebRtcSignalingServer? = null
+
+    // ── SRT Zero-Freeze ARQ Engine for OBS Studio ──────────────────────────────
+    private var srtEngine: com.cambridge.streamer.stream.SrtBridgeEngine? = null
+    private var srtSurface: Surface? = null
 
     private var camera: Camera? = null
     private var cameraProvider: ProcessCameraProvider? = null
@@ -273,6 +278,11 @@ class MainActivity : AppCompatActivity() {
         webRtcEngine?.inputSurface?.let { nativeUvcEngine?.removeSurface(it) }
         webRtcEngine?.release()
         webRtcEngine = null
+        // ── SRT cleanup ───────────────────────────────────────────────────────────
+        srtSurface?.let { nativeUvcEngine?.removeSurface(it) }
+        srtEngine?.release()
+        srtEngine = null
+        srtSurface = null
         // ──────────────────────────────────────────────────────────────────────────
         nativeUvcEngine?.onDirectJpegFrame = null
         nativeUvcEngine?.stop()
@@ -606,6 +616,11 @@ class MainActivity : AppCompatActivity() {
             val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
             clipboard.setPrimaryClip(ClipData.newPlainText("Wi-Fi WebRTC URL", binding.tvWifiUrl.text))
             showToast("Copied Wi-Fi Router URL: ${binding.tvWifiUrl.text}")
+        }
+
+        // Toggle Direct SRT Stream to OBS Studio
+        binding.btnToggleSrt.setOnClickListener {
+            toggleSrtStream()
         }
 
         // Copy OBS Zero-Lag Web URL (Browser Source <35ms)
@@ -944,18 +959,24 @@ class MainActivity : AppCompatActivity() {
                 .build()
 
             val rtcSurface = webRtcEngine?.inputSurface
-            if (rtcSurface != null && rtcSurface.isValid) {
+            val targetStreamSurface = when {
+                srtSurface != null && srtSurface!!.isValid -> srtSurface
+                rtcSurface != null && rtcSurface.isValid -> rtcSurface
+                else -> null
+            }
+
+            if (targetStreamSurface != null && targetStreamSurface.isValid) {
                 preview.setSurfaceProvider { request: SurfaceRequest ->
-                    if (rtcSurface.isValid) {
-                        request.provideSurface(rtcSurface, cameraExecutor) { result ->
-                            Log.d(TAG, "WebRTC surface released: ${result.resultCode}")
+                    if (targetStreamSurface.isValid) {
+                        request.provideSurface(targetStreamSurface, cameraExecutor) { result ->
+                            Log.d(TAG, "Stream surface released: ${result.resultCode}")
                         }
                     } else {
                         binding.viewFinder.surfaceProvider.onSurfaceRequested(request)
                     }
                 }
                 binding.viewFinder.visibility = View.GONE
-                Log.d(TAG, "WebRTC inputSurface bound to single CameraX preview")
+                Log.d(TAG, "Stream inputSurface bound to single CameraX preview")
             } else {
                 preview.setSurfaceProvider(binding.viewFinder.surfaceProvider)
                 binding.viewFinder.visibility = View.VISIBLE
@@ -1096,6 +1117,13 @@ class MainActivity : AppCompatActivity() {
             engine.addSurface(webRtcSurface)
             Log.d(TAG, "WebRTC inputSurface active (UDP bridge live)")
         }
+
+        // ── SRT surface for direct OBS Studio integration ───────────────────────
+        val srtSurf = srtSurface
+        if (srtSurf != null && srtSurf.isValid) {
+            engine.addSurface(srtSurf)
+            Log.d(TAG, "SRT inputSurface active (OBS Studio live)")
+        }
     }
 
     /**
@@ -1215,6 +1243,100 @@ class MainActivity : AppCompatActivity() {
         }
 
         updateUvcSurfacesForCurrentMode()
+    }
+
+    // ─── SRT Stream to OBS Studio ──────────────────────────────────────────────
+
+    private fun toggleSrtStream() {
+        if (srtEngine?.isStreaming == true) {
+            stopSrtStream()
+        } else {
+            startSrtStream()
+        }
+    }
+
+    private fun startSrtStream() {
+        val laptopIp = binding.etSrtTargetIp.text.toString().trim()
+        if (laptopIp.isEmpty()) {
+            showToast("Enter Laptop/OBS IP (e.g. 192.168.1.50)")
+            return
+        }
+
+        val srtUrl = "srt://$laptopIp:8890?latency=80000"
+        binding.tvSrtStatus.text = "⚡ Connecting to OBS at $srtUrl..."
+        binding.tvSrtStatus.setTextColor(Color.parseColor("#FFD54F"))
+
+        if (srtEngine == null) {
+            srtEngine = com.cambridge.streamer.stream.SrtBridgeEngine(this, object : com.cambridge.streamer.stream.SrtBridgeEngine.SrtListener {
+                override fun onSrtConnected() {
+                    runOnUiThread {
+                        binding.btnToggleSrt.text = "⏹ STOP SRT"
+                        binding.btnToggleSrt.setTextColor(Color.parseColor("#FF5252"))
+                        binding.tvSrtStatus.text = "🟢 SRT LIVE TO OBS @ 60 FPS (ARQ Zero-Freeze Active)"
+                        binding.tvSrtStatus.setTextColor(Color.parseColor("#00E676"))
+                        showToast("✅ SRT connected directly to OBS Studio!")
+                    }
+                }
+
+                override fun onSrtDisconnected() {
+                    runOnUiThread {
+                        binding.btnToggleSrt.text = "🚀 PUSH SRT"
+                        binding.btnToggleSrt.setTextColor(Color.parseColor("#00E676"))
+                        binding.tvSrtStatus.text = "⚠️ SRT Disconnected"
+                        binding.tvSrtStatus.setTextColor(Color.parseColor("#FFA000"))
+                    }
+                }
+
+                override fun onSrtFailed(reason: String) {
+                    runOnUiThread {
+                        binding.btnToggleSrt.text = "🚀 PUSH SRT"
+                        binding.btnToggleSrt.setTextColor(Color.parseColor("#00E676"))
+                        binding.tvSrtStatus.text = "❌ SRT Failed: $reason (Verify OBS Media Source on 8890)"
+                        binding.tvSrtStatus.setTextColor(Color.parseColor("#FF5252"))
+                        showToast("SRT Error: $reason")
+                    }
+                }
+
+                override fun onSrtSurfaceReady(surface: Surface) {
+                    srtSurface = surface
+                    if (activeBackend == CameraBackend.NATIVE_UVC) {
+                        nativeUvcEngine?.addSurface(surface)
+                        Log.d(TAG, "SRT Surface added to Native UVC Engine")
+                    } else if (isPhoneCameraTestMode) {
+                        runOnUiThread { cameraProvider?.let { bindCamera(currentMode) } }
+                    }
+                }
+
+                override fun onSrtSurfaceDestroyed(surface: Surface) {
+                    if (activeBackend == CameraBackend.NATIVE_UVC) {
+                        nativeUvcEngine?.removeSurface(surface)
+                    }
+                    srtSurface = null
+                }
+            })
+        }
+
+        val targetW = if (captureWidth > 0) captureWidth else 1920
+        val targetH = if (captureHeight > 0) captureHeight else 1080
+        val prepared = srtEngine?.prepare(width = targetW, height = targetH, fps = 60, bitrateKbps = 8000) ?: false
+        if (prepared) {
+            srtEngine?.startStream(srtUrl)
+        } else {
+            showToast("Failed to initialize hardware encoder for SRT")
+            binding.tvSrtStatus.text = "❌ Hardware Encoder Init Failed"
+            binding.tvSrtStatus.setTextColor(Color.parseColor("#FF5252"))
+        }
+    }
+
+    private fun stopSrtStream() {
+        srtEngine?.stopStream()
+        srtSurface?.let { nativeUvcEngine?.removeSurface(it) }
+        srtSurface = null
+        binding.btnToggleSrt.text = "🚀 PUSH SRT"
+        binding.btnToggleSrt.setTextColor(Color.parseColor("#00E676"))
+        binding.tvSrtStatus.text = "⚡ SRT Standby (Ready to connect)"
+        binding.tvSrtStatus.setTextColor(Color.parseColor("#B0BEC5"))
+        showToast("SRT stream stopped")
     }
 
     private fun toggleCameraSimulation() {

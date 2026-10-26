@@ -1,6 +1,6 @@
 {
-  "versionCode": 31,
-  "versionName": "1.3.8",
-  "apkUrl": "https://github.com/dubeyjideepak/cambridge-pro/releases/download/v1.3.8/CamBridgePro.apk",
-  "changelog": "v1.3.8 Optical Camera Test Mode: Seamless internal phone camera simulation over WebRTC without requiring HDMI capture card hardware. Fixes CameraX single-preview binding for instant test streaming."
+  "versionCode": 32,
+  "versionName": "1.4.0",
+  "apkUrl": "https://github.com/dubeyjideepak/cambridge-pro/releases/download/v1.4.0/CamBridgePro.apk",
+  "changelog": "v1.4.0 Native SRT Engine for OBS Studio: Direct SRT broadcast from phone to OBS Media Source (srt://0.0.0.0:8890?mode=listener) with ARQ hardware packet recovery. Zero visible freezes on volatile Wi-Fi networks."
 }

@@ -11,8 +11,8 @@ android {
         applicationId = "com.cambridge.streamer"
         minSdk = 26
         targetSdk = 34
-        versionCode = 31
-        versionName = "1.3.8"
+        versionCode = 32
+        versionName = "1.4.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -71,4 +71,8 @@ dependencies {
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.2")
+
+    // RootEncoder SRT (Secure Reliable Transport for OBS Studio with ARQ zero-freeze)
+    implementation("com.github.pedroSG94.RootEncoder:library:2.4.4")
+    implementation("com.github.pedroSG94.RootEncoder:srt:2.4.4")
 }

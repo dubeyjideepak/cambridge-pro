@@ -11,8 +11,8 @@ android {
         applicationId = "com.cambridge.streamer"
         minSdk = 26
         targetSdk = 34
-        versionCode = 22
-        versionName = "1.2.1"
+        versionCode = 23
+        versionName = "1.3.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -57,6 +57,12 @@ dependencies {
 
     // Lightweight embedded HTTP server for live laptop browser preview
     implementation("org.nanohttpd:nanohttpd:2.3.1")
+    // NanoWSD WebSocket extension — powers zero-freeze WebRTC signaling server
+    implementation("org.nanohttpd:nanohttpd-websocket:2.3.1")
+
+    // Google WebRTC for Android — SRTP/UDP zero-freeze live camera bridging
+    // Replaces HTTP-FLV (TCP) with WebRTC (UDP) — eliminates all TCP head-of-line blocking freezes
+    implementation("io.github.webrtc-sdk:android:125.6422.07")
 
     // Embedded QR Code Generation (for dynamic UPI QR codes)
     implementation("com.google.zxing:core:3.5.3")

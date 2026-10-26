@@ -77,6 +77,10 @@ class MainActivity : AppCompatActivity() {
     private var rtmpStreamManager: RtmpStreamManager? = null
     private lateinit var bondingEngine: NetworkBondingEngine
 
+    // ── WebRTC Zero-Freeze UDP Bridge ──────────────────────────────────────────
+    private var webRtcEngine: com.cambridge.streamer.stream.WebRtcBridgeEngine? = null
+    private var webRtcSignalingServer: com.cambridge.streamer.stream.WebRtcSignalingServer? = null
+
     private var camera: Camera? = null
     private var cameraProvider: ProcessCameraProvider? = null
 
@@ -258,6 +262,13 @@ class MainActivity : AppCompatActivity() {
         webServer?.isStreaming = false
         webServer?.stop()
         webServer = null
+        // ── WebRTC cleanup ────────────────────────────────────────────────────────
+        webRtcSignalingServer?.stop()
+        webRtcSignalingServer = null
+        webRtcEngine?.inputSurface?.let { nativeUvcEngine?.removeSurface(it) }
+        webRtcEngine?.release()
+        webRtcEngine = null
+        // ──────────────────────────────────────────────────────────────────────────
         nativeUvcEngine?.onDirectJpegFrame = null
         nativeUvcEngine?.stop()
         bridgeAudioPipeline?.stop()
@@ -394,7 +405,7 @@ class MainActivity : AppCompatActivity() {
     private fun setupNetworkUrls() {
         val localIp = NetworkUtils.getLocalIpAddress()
         binding.tvDirectWebUrl.text = "http://$localIp:8080/obs"
-        binding.tvDirectFlvUrl.text = "http://$localIp:8080/live.flv"
+        binding.tvDirectFlvUrl.text = "WebRTC: http://$localIp:8080/webrtc  |  FLV: /live.flv"
         ensureWebServerStarted()
     }
 
@@ -438,6 +449,27 @@ class MainActivity : AppCompatActivity() {
                 Log.d(TAG, "WebMonitorServer started on port 8080")
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to start WebMonitorServer", e)
+            }
+        }
+        // ── WebRTC Zero-Freeze UDP Engine (always ready alongside HTTP-FLV) ──────
+        if (webRtcEngine == null) {
+            webRtcEngine = com.cambridge.streamer.stream.WebRtcBridgeEngine(this)
+            webRtcEngine!!.init {
+                // onReady: inputSurface is valid — attach it to UVC camera output
+                val surface = webRtcEngine?.inputSurface
+                if (surface != null && surface.isValid && activeBackend == CameraBackend.NATIVE_UVC) {
+                    nativeUvcEngine?.addSurface(surface)
+                    Log.d(TAG, "✅ WebRTC inputSurface attached to UVC engine on ready")
+                }
+            }
+        }
+        if (webRtcSignalingServer == null) {
+            try {
+                webRtcSignalingServer = com.cambridge.streamer.stream.WebRtcSignalingServer(8081, webRtcEngine!!)
+                webRtcSignalingServer!!.start()
+                Log.d(TAG, "✅ WebRTC signaling server started on port 8081")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to start WebRTC signaling server", e)
             }
         }
         nativeUvcEngine?.onDirectJpegFrame = null
@@ -1026,6 +1058,14 @@ class MainActivity : AppCompatActivity() {
             }
         } else if (!isStreaming && encoderSurface != null) {
             engine.removeSurface(encoderSurface)
+        }
+
+        // ── WebRTC surface — always fed regardless of isStreaming state ──────────
+        // WebRTC UDP pipeline is always-on; browsers connect/disconnect independently.
+        val webRtcSurface = webRtcEngine?.inputSurface
+        if (webRtcSurface != null && webRtcSurface.isValid) {
+            engine.addSurface(webRtcSurface)
+            Log.d(TAG, "WebRTC inputSurface active (UDP bridge live)")
         }
     }
 

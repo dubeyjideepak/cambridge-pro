@@ -163,6 +163,10 @@ class WebMonitorServer(
             uri == "/live.flv" -> {
                 serveFlvStream()
             }
+            uri == "/webrtc" || uri == "/webrtc.html" -> {
+                notifyClientActivity()
+                serveWebRtcPage(session)
+            }
             uri == "/flv.min.js" -> {
                 serveFlvJsAsset()
             }
@@ -429,6 +433,134 @@ class WebMonitorServer(
             Log.w(TAG, "Error opening flv.min.js from assets", e)
             newFixedLengthResponse(Response.Status.NOT_FOUND, "text/plain", "Error loading asset")
         }
+    }
+
+    /**
+     * Serves the self-contained WebRTC viewer page.
+     * OBS Browser Source opens this URL: http://<phone-ip>:8080/webrtc
+     *
+     * The page connects to the WebSocket signaling server on port 8081,
+     * negotiates SDP offer/answer, and receives the live camera stream
+     * over SRTP/UDP — zero TCP blocking, zero freeze, zero lag.
+     */
+    private fun serveWebRtcPage(session: IHTTPSession): Response {
+        val host = session.headers["host"]?.split(":")?.get(0) ?: "phone-ip"
+        val html = """<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CamBridge Pro — WebRTC Zero-Lag Live</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; background: #000; overflow: hidden; }
+  video { width: 100vw; height: 100vh; object-fit: contain; display: block; }
+  #status {
+    position: fixed; top: 10px; left: 10px;
+    color: #00E676; font-family: monospace; font-size: 13px;
+    background: rgba(0,0,0,0.6); padding: 4px 10px; border-radius: 4px;
+    z-index: 100;
+  }
+</style>
+</head>
+<body>
+<video id="v" autoplay muted playsinline></video>
+<div id="status">⚡ Connecting via WebRTC UDP...</div>
+<script>
+const video = document.getElementById('v');
+const status = document.getElementById('status');
+
+const WS_HOST = '$host';
+const WS_PORT = 8081;
+
+function connect() {
+  const ws = new WebSocket('ws://' + WS_HOST + ':' + WS_PORT);
+
+  const pc = new RTCPeerConnection({
+    iceServers: [],          // No STUN needed — local Wi-Fi peer connection
+    bundlePolicy: 'max-bundle',
+    rtcpMuxPolicy: 'require'
+  });
+
+  pc.ontrack = (event) => {
+    if (event.streams && event.streams[0]) {
+      video.srcObject = event.streams[0];
+    } else {
+      const stream = new MediaStream([event.track]);
+      video.srcObject = stream;
+    }
+    status.textContent = '🟢 WebRTC LIVE — Zero-Lag UDP Stream (CamBridge Pro)';
+    status.style.color = '#00E676';
+  };
+
+  pc.oniceconnectionstatechange = () => {
+    if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
+      status.textContent = '🟢 WebRTC Connected — UDP Stream Active';
+    } else if (pc.iceConnectionState === 'failed') {
+      status.textContent = '⚠️ ICE Failed — retrying in 2s...';
+      setTimeout(connect, 2000);
+    } else if (pc.iceConnectionState === 'disconnected') {
+      status.textContent = '⚠️ Disconnected — retrying in 2s...';
+      setTimeout(connect, 2000);
+    }
+  };
+
+  pc.onicecandidate = (event) => {
+    if (event.candidate) {
+      ws.send(JSON.stringify({
+        type: 'ice',
+        candidate: event.candidate.candidate,
+        sdpMid: event.candidate.sdpMid,
+        sdpMLineIndex: event.candidate.sdpMLineIndex
+      }));
+    }
+  };
+
+  ws.onopen = () => {
+    status.textContent = '⚡ WebSocket OK — waiting for camera offer...';
+  };
+
+  ws.onmessage = async (event) => {
+    try {
+      const msg = JSON.parse(event.data);
+      if (msg.type === 'offer') {
+        status.textContent = '⚡ SDP offer received — negotiating UDP path...';
+        await pc.setRemoteDescription({ type: 'offer', sdp: msg.sdp });
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        ws.send(JSON.stringify({ type: 'answer', sdp: answer.sdp }));
+      } else if (msg.type === 'ice') {
+        try {
+          await pc.addIceCandidate({
+            candidate: msg.candidate,
+            sdpMid: msg.sdpMid,
+            sdpMLineIndex: msg.sdpMLineIndex
+          });
+        } catch (e) { /* ignore stale candidates */ }
+      }
+    } catch (e) {
+      console.error('Signaling error:', e);
+    }
+  };
+
+  ws.onerror = () => {
+    status.textContent = '❌ WebSocket error — retrying in 2s...';
+    status.style.color = '#FF5252';
+  };
+
+  ws.onclose = () => {
+    status.textContent = '⚠️ WebSocket closed — retrying in 3s...';
+    setTimeout(connect, 3000);
+  };
+}
+
+connect();
+</script>
+</body>
+</html>""".trimIndent()
+        val resp = newFixedLengthResponse(Response.Status.OK, "text/html", html)
+        resp.addHeader("Cache-Control", "no-cache, no-store, must-revalidate")
+        return resp
     }
 
     private fun serveFlvStream(): Response {

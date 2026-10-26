@@ -254,6 +254,11 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        setupNetworkUrls()
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         qrTimerJob?.cancel()
@@ -404,8 +409,13 @@ class MainActivity : AppCompatActivity() {
     // ─── Network / Bonding ─────────────────────────────────────────────────────
 
     private fun setupNetworkUrls() {
-        val localIp = NetworkUtils.getLocalIpAddress()
-        binding.tvDirectWebUrl.text = "http://$localIp:8080/webrtc"
+        val endpoints = NetworkUtils.getNetworkEndpoints()
+        val wifiIp = endpoints.wifiRouterIp ?: "192.168.1.xxx"
+        val hotspotIp = endpoints.hotspotIp
+
+        binding.tvHotspotUrl.text = "http://$hotspotIp:8080/webrtc"
+        binding.tvWifiUrl.text = "http://$wifiIp:8080/webrtc"
+        binding.tvDirectWebUrl.text = "http://${endpoints.bestIp}:8080/webrtc"
         ensureWebServerStarted()
     }
 
@@ -576,6 +586,20 @@ class MainActivity : AppCompatActivity() {
             binding.overlayView.compositor.isOverlayEnabled =
                 (currentMode == ProductionMode.IN_APP_STUDIO) && isChecked
             binding.overlayView.invalidate()
+        }
+
+        // Copy Direct Mobile Hotspot URL
+        binding.btnCopyHotspotUrl.setOnClickListener {
+            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            clipboard.setPrimaryClip(ClipData.newPlainText("Hotspot WebRTC URL", binding.tvHotspotUrl.text))
+            showToast("Copied Hotspot URL: ${binding.tvHotspotUrl.text}")
+        }
+
+        // Copy Wi-Fi Router URL
+        binding.btnCopyWifiUrl.setOnClickListener {
+            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            clipboard.setPrimaryClip(ClipData.newPlainText("Wi-Fi WebRTC URL", binding.tvWifiUrl.text))
+            showToast("Copied Wi-Fi Router URL: ${binding.tvWifiUrl.text}")
         }
 
         // Copy OBS Zero-Lag Web URL (Browser Source <35ms)
@@ -1053,12 +1077,12 @@ class MainActivity : AppCompatActivity() {
             Log.d(TAG, "Screen preview detached to save CPU/GPU")
         }
 
-        if (isStreaming && encoderSurface != null && encoderSurface.isValid) {
+        if (isStreaming && currentMode == ProductionMode.IN_APP_STUDIO && encoderSurface != null && encoderSurface.isValid) {
             if (!isSimulatingCamera) {
                 engine.addSurface(encoderSurface)
-                Log.d(TAG, "Encoder surface active for broadcast")
+                Log.d(TAG, "Encoder surface active for Studio broadcast")
             }
-        } else if (!isStreaming && encoderSurface != null) {
+        } else if (encoderSurface != null) {
             engine.removeSurface(encoderSurface)
         }
 

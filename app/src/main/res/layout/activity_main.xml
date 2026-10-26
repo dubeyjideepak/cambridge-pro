@@ -385,7 +385,7 @@
                     android:textColor="@color/text_secondary"
                     android:textSize="11sp" />
 
-                <!-- Single Pure WebRTC UDP Card (VDO.Ninja Architecture) -->
+                <!-- Dual Connection WebRTC Cards (VDO.Ninja Architecture) -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -397,50 +397,150 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="🌐 WEBRTC UDP STREAM (VDO.NINJA PROTOCOL)"
+                        android:text="🌐 WEBRTC UDP STREAM (VDO.NINJA ZERO-FREEZE)"
                         android:textColor="#00E676"
-                        android:textSize="11sp"
+                        android:textSize="12sp"
                         android:textStyle="bold" />
 
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
-                        android:text="Add as Browser Source in OBS (Zero Freeze, Hardware H.264 VPU):"
+                        android:layout_marginTop="3dp"
+                        android:text="Hardware H.264 VPU stream directly into OBS Browser Source:"
                         android:textColor="@color/text_secondary"
                         android:textSize="10sp" />
 
+                    <!-- Divider -->
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:layout_marginVertical="8dp"
+                        android:background="#1E2D4A" />
+
+                    <!-- OPTION 1: Direct Mobile Hotspot -->
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="6dp"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal">
+                        android:orientation="vertical">
 
                         <TextView
-                            android:id="@+id/tvDirectWebUrl"
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:fontFamily="monospace"
-                            android:text="http://192.168.1.xxx:8080/webrtc"
-                            android:textColor="@color/emerald_primary"
-                            android:textSize="13sp"
-                            android:textStyle="bold" />
-
-                        <Button
-                            android:id="@+id/btnCopyWebUrl"
                             android:layout_width="wrap_content"
-                            android:layout_height="32dp"
-                            android:background="@drawable/bg_cta_emerald"
-                            android:paddingHorizontal="14dp"
-                            android:text="📋 Copy Link"
-                            android:textColor="#000000"
+                            android:layout_height="wrap_content"
+                            android:text="🔥 OPTION 1: DIRECT MOBILE HOTSPOT (Zero Router Congestion)"
+                            android:textColor="#FFB300"
                             android:textSize="11sp"
                             android:textStyle="bold" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:text="Turn ON phone Hotspot (5 GHz) ➔ Connect Laptop to phone Wi-Fi:"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="10sp" />
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal">
+
+                            <TextView
+                                android:id="@+id/tvHotspotUrl"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:fontFamily="monospace"
+                                android:text="http://192.168.43.1:8080/webrtc"
+                                android:textColor="#FFD54F"
+                                android:textSize="12sp"
+                                android:textStyle="bold" />
+
+                            <Button
+                                android:id="@+id/btnCopyHotspotUrl"
+                                android:layout_width="wrap_content"
+                                android:layout_height="32dp"
+                                android:background="@drawable/bg_segmented_pill"
+                                android:paddingHorizontal="12dp"
+                                android:text="📋 Copy Hotspot"
+                                android:textColor="#FFD54F"
+                                android:textSize="10sp"
+                                android:textStyle="bold" />
+                        </LinearLayout>
                     </LinearLayout>
 
-                    <!-- Hidden legacy FLV fields to preserve view binding -->
+                    <!-- Divider -->
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:layout_marginVertical="8dp"
+                        android:background="#1E2D4A" />
+
+                    <!-- OPTION 2: Local Wi-Fi Router -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="📶 OPTION 2: LOCAL WI-FI ROUTER (Shared Network)"
+                            android:textColor="#80D8FF"
+                            android:textSize="11sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:text="Both Phone and Laptop connected to your home/office Wi-Fi router:"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="10sp" />
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal">
+
+                            <TextView
+                                android:id="@+id/tvWifiUrl"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:fontFamily="monospace"
+                                android:text="http://192.168.1.xxx:8080/webrtc"
+                                android:textColor="#80D8FF"
+                                android:textSize="12sp"
+                                android:textStyle="bold" />
+
+                            <Button
+                                android:id="@+id/btnCopyWifiUrl"
+                                android:layout_width="wrap_content"
+                                android:layout_height="32dp"
+                                android:background="@drawable/bg_segmented_pill"
+                                android:paddingHorizontal="12dp"
+                                android:text="📋 Copy Wi-Fi"
+                                android:textColor="#80D8FF"
+                                android:textSize="10sp"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+                    </LinearLayout>
+
+                    <!-- Hidden legacy fields to preserve view binding -->
+                    <TextView
+                        android:id="@+id/tvDirectWebUrl"
+                        android:layout_width="0dp"
+                        android:layout_height="0dp"
+                        android:visibility="gone" />
+                    <Button
+                        android:id="@+id/btnCopyWebUrl"
+                        android:layout_width="0dp"
+                        android:layout_height="0dp"
+                        android:visibility="gone" />
                     <TextView
                         android:id="@+id/tvDirectFlvUrl"
                         android:layout_width="0dp"

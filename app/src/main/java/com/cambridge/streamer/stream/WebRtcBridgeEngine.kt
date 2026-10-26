@@ -205,12 +205,12 @@ class WebRtcBridgeEngine(private val context: Context) {
                         val params = sender.parameters
                         params.degradationPreference = RtpParameters.DegradationPreference.MAINTAIN_FRAMERATE
                         for (enc in params.encodings) {
-                            enc.minBitrateBps = 3_000_000
-                            enc.maxBitrateBps = 10_000_000
+                            enc.minBitrateBps = 1_000_000
+                            enc.maxBitrateBps = 8_000_000
                             enc.maxFramerate = 60
                         }
                         sender.parameters = params
-                        Log.d(TAG, "✅ RtpSender configured: MAINTAIN_FRAMERATE, 3-10 Mbps, 60 FPS")
+                        Log.d(TAG, "✅ RtpSender configured: MAINTAIN_FRAMERATE, 1-8 Mbps, 60 FPS")
                     } catch (e: Exception) {
                         Log.w(TAG, "Failed to apply RtpSender parameters", e)
                     }

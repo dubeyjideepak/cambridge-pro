@@ -1,6 +1,6 @@
 {
-  "versionCode": 26,
-  "versionName": "1.3.3",
-  "apkUrl": "https://github.com/dubeyjideepak/cambridge-pro/releases/download/v1.3.3/CamBridgePro.apk",
-  "changelog": "Pure WebRTC Zero-Freeze Engine (VDO.Ninja Architecture): 1) Prioritized Hardware H.264 VPU over software VP8/VP9 in WebRTC SDP offer, eliminating mobile CPU choke during motion. 2) Injected 8 Mbps bandwidth constraint and MAINTAIN_FRAMERATE degradation preference. 3) Added zero-latency playoutDelayHint=0 in viewer. 4) Cleaned up UI to display a single, simple WebRTC link."
+  "versionCode": 27,
+  "versionName": "1.3.4",
+  "apkUrl": "https://github.com/dubeyjideepak/cambridge-pro/releases/download/v1.3.4/CamBridgePro.apk",
+  "changelog": "Dual Connection (Hotspot vs Wi-Fi) & 60 FPS Hardware MJPEG Fix: 1) Added Dual Connection support: Direct Mobile Hotspot (bypasses router network congestion) and Local Wi-Fi Router. 2) Fixed UVC hardware frame rate throttle (now unlocks full 60 FPS hardware MJPEG instead of defaulting to 5-10 FPS). 3) Detached competing surfaces and MediaCodec from UVC pipeline so 100% of frames stream to WebRTC without vsync lock."
 }

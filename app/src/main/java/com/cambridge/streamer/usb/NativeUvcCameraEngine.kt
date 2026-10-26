@@ -146,17 +146,28 @@ class NativeUvcCameraEngine(
                     Log.d(TAG, "UVC onDeviceOpen: ${device.productName}, first: $isFirstOpen")
                     try {
                         val sizes = helper.supportedSizeList
-                        // Prioritize MJPEG (type = FRAME_FORMAT_MJPEG = 1) for 1080p 30/60fps without USB 2.0 5fps bottleneck
-                        val preferred = sizes?.firstOrNull { it.width == 1920 && it.height == 1080 && it.type == com.serenegiant.usb.UVCCamera.FRAME_FORMAT_MJPEG }
-                            ?: sizes?.firstOrNull { it.width == 1920 && it.height == 1080 }
-                            ?: sizes?.firstOrNull { it.width == 1280 && it.height == 720 && it.type == com.serenegiant.usb.UVCCamera.FRAME_FORMAT_MJPEG }
-                            ?: sizes?.firstOrNull { it.width == 1280 && it.height == 720 }
-                            ?: sizes?.firstOrNull()
+                        Log.d(TAG, "Supported UVC sizes count: ${sizes?.size ?: 0}")
+                        sizes?.forEach { s ->
+                            Log.d(TAG, "Available UVC mode: ${s.width}x${s.height} @ ${s.fps} FPS, type=${s.type}, fpsList=${s.fpsList}")
+                        }
+
+                        // Prioritize MJPEG (type = FRAME_FORMAT_MJPEG = 1) for 1080p 60fps without USB 2.0 5fps bottleneck
+                        val mjpegSizes = sizes?.filter { it.type == com.serenegiant.usb.UVCCamera.FRAME_FORMAT_MJPEG } ?: emptyList()
+                        val pool = if (mjpegSizes.isNotEmpty()) mjpegSizes else (sizes ?: emptyList())
+
+                        val preferred = pool.firstOrNull { it.width == 1920 && it.height == 1080 }
+                            ?: pool.firstOrNull { it.width == 1280 && it.height == 720 }
+                            ?: pool.firstOrNull()
 
                         if (preferred != null) {
+                            // Force highest supported hardware framerate (60 FPS or 50/30 FPS)
+                            val maxFps = preferred.fpsList?.maxOrNull() ?: 60
+                            val targetFps = if (maxFps > 0) maxFps else 60
+                            preferred.fps = targetFps
+
                             currentWidth = preferred.width
                             currentHeight = preferred.height
-                            Log.d(TAG, "Opening UVC with resolution: ${preferred.width}x${preferred.height}")
+                            Log.d(TAG, "⚡ Opening UVC hardware: ${preferred.width}x${preferred.height} @ ${preferred.fps} FPS (type=${preferred.type})")
                             helper.openCamera(preferred)
                         } else {
                             helper.openCamera()
@@ -256,12 +267,11 @@ class NativeUvcCameraEngine(
 
     fun addSurface(surface: Surface) {
         synchronized(attachedSurfaces) {
-            attachedSurfaces.add(surface)
+            val isNew = attachedSurfaces.add(surface)
             if (cameraHelper?.isCameraOpened == true && surface.isValid) {
                 try {
                     cameraHelper?.addSurface(surface, false)
-                    cameraHelper?.startPreview()
-                    Log.d(TAG, "Surface added to running UVC pipeline: hash=${surface.hashCode()}")
+                    Log.d(TAG, "Surface added to running UVC pipeline (isNew=$isNew): hash=${surface.hashCode()}")
                 } catch (e: Exception) {
                     Log.e(TAG, "Failed to add surface to UVC pipeline", e)
                 }

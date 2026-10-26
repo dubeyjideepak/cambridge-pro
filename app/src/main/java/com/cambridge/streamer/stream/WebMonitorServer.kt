@@ -321,12 +321,23 @@ function connect() {
   pc.oniceconnectionstatechange = () => {
     console.log('ICE state:', pc.iceConnectionState);
     if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
-      status.textContent = '🟢 WebRTC UDP Connected — Awaiting frames...';
+      status.textContent = '🟢 WebRTC UDP Connected — Live';
       status.style.color = '#00E676';
+      video.play().catch(e => console.log('Play on ICE connected:', e));
     } else if (pc.iceConnectionState === 'failed') {
       scheduleReconnect('ICE Failed');
     }
   };
+
+  video.onloadedmetadata = () => {
+    video.play().catch(e => console.log('Metadata play:', e));
+  };
+  video.onplaying = () => {
+    console.log('Video started playing: ' + video.videoWidth + 'x' + video.videoHeight);
+  };
+  document.body.addEventListener('click', () => {
+    video.play().catch(e => console.log('Click play:', e));
+  });
 
   let lastCheckTime = performance.now();
   let lastTotalFrames = 0;
@@ -390,6 +401,19 @@ function connect() {
             sdpMid: msg.sdpMid,
             sdpMLineIndex: msg.sdpMLineIndex
           });
+          // Injected direct host candidate using WS_HOST (exact phone IP)
+          if (msg.candidate && msg.candidate.includes('typ host') && msg.candidate.includes('udp')) {
+            const parts = msg.candidate.split(' ');
+            if (parts.length >= 8 && parts[4] !== WS_HOST) {
+              const patched = msg.candidate.replace(parts[4], WS_HOST);
+              console.log('⚡ Direct WS_HOST candidate injected:', WS_HOST, parts[5]);
+              await pc.addIceCandidate({
+                candidate: patched,
+                sdpMid: msg.sdpMid,
+                sdpMLineIndex: msg.sdpMLineIndex
+              });
+            }
+          }
         } catch(e) {}
       }
     } catch (e) {

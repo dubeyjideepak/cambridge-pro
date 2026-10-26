@@ -160,6 +160,8 @@ class WebRtcBridgeEngine(private val context: Context) {
                     sdpSemantics = PeerConnection.SdpSemantics.UNIFIED_PLAN
                     continualGatheringPolicy = PeerConnection.ContinualGatheringPolicy.GATHER_CONTINUALLY
                     iceTransportsType = PeerConnection.IceTransportsType.ALL
+                    candidateNetworkPolicy = PeerConnection.CandidateNetworkPolicy.ALL
+                    enableIceGatheringOnAnyAddressPorts = true
                 }
 
                 val pcObserver = object : PeerConnection.Observer {
@@ -181,6 +183,30 @@ class WebRtcBridgeEngine(private val context: Context) {
                             put("sdpMLineIndex", c.sdpMLineIndex)
                         }.toString()
                         signalingCallback?.sendToClient(json)
+
+                        // If this is a host UDP candidate, also synthesize candidates for all device local IPs (Wi-Fi, Hotspot)
+                        if (c.sdp.contains("typ host") && c.sdp.contains("udp")) {
+                            val parts = c.sdp.split(" ")
+                            if (parts.size >= 8) {
+                                val currentIp = parts[4]
+                                val port = parts[5]
+                                val endpoints = com.cambridge.streamer.utils.NetworkUtils.getNetworkEndpoints()
+                                val targetIps = listOfNotNull(endpoints.wifiRouterIp, endpoints.hotspotIp, endpoints.bestIp).distinct()
+                                for (tip in targetIps) {
+                                    if (tip != currentIp && tip != "127.0.0.1") {
+                                        val patchedSdp = c.sdp.replace(" $currentIp $port ", " $tip $port ")
+                                        val patchedJson = JSONObject().apply {
+                                            put("type", "ice")
+                                            put("candidate", patchedSdp)
+                                            put("sdpMid", c.sdpMid)
+                                            put("sdpMLineIndex", c.sdpMLineIndex)
+                                        }.toString()
+                                        signalingCallback?.sendToClient(patchedJson)
+                                        Log.d(TAG, "⚡ Synthesized local LAN candidate: $tip:$port")
+                                    }
+                                }
+                            }
+                        }
                     }
 
                     override fun onIceCandidatesRemoved(p: Array<out IceCandidate>?) {}

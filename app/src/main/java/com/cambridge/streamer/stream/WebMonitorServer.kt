@@ -160,244 +160,9 @@ class WebMonitorServer(
         val uri = session.uri
 
         return when {
-            uri == "/live.flv" -> {
-                serveFlvStream()
-            }
-            uri == "/webrtc" || uri == "/webrtc.html" -> {
+            uri == "/live.flv" || uri == "/webrtc" || uri == "/webrtc.html" || uri == "/obs" || uri == "/obs.html" || uri == "/" || uri == "/index.html" -> {
                 notifyClientActivity()
                 serveWebRtcPage(session)
-            }
-            uri == "/flv.min.js" -> {
-                serveFlvJsAsset()
-            }
-            uri == "/obs" || uri == "/obs.html" -> {
-                notifyClientActivity()
-                val html = """
-                    <!DOCTYPE html>
-                    <html lang="en">
-                    <head>
-                        <meta charset="utf-8">
-                        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                        <title>CamBridge Pro — OBS Ultra-Low Latency Feed</title>
-                        <style>
-                            * { margin: 0; padding: 0; box-sizing: border-box; }
-                            html, body {
-                                width: 100%;
-                                height: 100%;
-                                overflow: hidden;
-                                background-color: #000;
-                            }
-                            #videoPlayer, #mjpegStream {
-                                width: 100vw;
-                                height: 100vh;
-                                object-fit: contain;
-                                display: block;
-                            }
-                        </style>
-                        <script src="/flv.min.js"></script>
-                    </head>
-                    <body>
-                        <video id="videoPlayer" autoplay muted playsinline></video>
-                        <img id="mjpegStream" style="display:none;" alt="Live Fallback" />
-                        <script>
-                            const video = document.getElementById('videoPlayer');
-                            const mjpeg = document.getElementById('mjpegStream');
-
-                            function startMjpegFallback() {
-                                video.style.display = 'none';
-                                mjpeg.style.display = 'block';
-                                mjpeg.src = '/stream.mjpeg?t=' + Date.now();
-                                mjpeg.onerror = () => {
-                                    setTimeout(() => { mjpeg.src = '/stream.mjpeg?t=' + Date.now(); }, 500);
-                                };
-                            }
-
-                            if (window.flvjs && flvjs.isSupported()) {
-                                try {
-                                    const player = flvjs.createPlayer({
-                                        type: 'flv',
-                                        isLive: true,
-                                        url: '/live.flv'
-                                    }, {
-                                        enableStashBuffer: false,
-                                        stashInitialSize: 128,
-                                        autoCleanupSourceBuffer: true,
-                                        autoCleanupMaxBackwardDuration: 2,
-                                        autoCleanupMinBackwardDuration: 1,
-                                        fixAudioTimestampGap: false
-                                    });
-
-                                    player.attachMediaElement(video);
-                                    player.load();
-                                    const playPromise = player.play();
-                                    if (playPromise !== undefined) {
-                                        playPromise.catch(() => {
-                                            video.muted = true;
-                                            player.play();
-                                        });
-                                    }
-
-                                    // Watchdog: snap to live edge if buffer ever accumulates (>250ms)
-                                    setInterval(() => {
-                                        if (video.buffered.length > 0) {
-                                            const end = video.buffered.end(video.buffered.length - 1);
-                                            const diff = end - video.currentTime;
-                                            if (diff > 0.25) {
-                                                video.currentTime = end - 0.03;
-                                            }
-                                        }
-                                    }, 1000);
-
-                                    player.on(flvjs.Events.ERROR, () => {
-                                        console.warn("FLV player error, falling back to MJPEG");
-                                        player.destroy();
-                                        startMjpegFallback();
-                                    });
-                                } catch (e) {
-                                    console.error("FLV initialization error", e);
-                                    startMjpegFallback();
-                                }
-                            } else {
-                                startMjpegFallback();
-                            }
-                        </script>
-                    </body>
-                    </html>
-                """.trimIndent()
-                val resp = newFixedLengthResponse(Response.Status.OK, "text/html", html)
-                resp.addHeader("Cache-Control", "no-cache, no-store, must-revalidate")
-                resp
-            }
-            uri == "/" || uri == "/index.html" -> {
-                val host = session.headers["host"]?.split(":")?.get(0) ?: "phone-ip"
-                val html = """
-                    <!DOCTYPE html>
-                    <html lang="en">
-                    <head>
-                        <meta charset="UTF-8">
-                        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                        <title>CamBridge Pro - Live GPU Stream Monitor</title>
-                        <style>
-                            * { margin: 0; padding: 0; box-sizing: border-box; }
-                            body {
-                                background-color: #080C14;
-                                color: #fff;
-                                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-                                display: flex;
-                                flex-direction: column;
-                                height: 100vh;
-                                overflow: hidden;
-                            }
-                            header {
-                                background: #101826;
-                                padding: 14px 24px;
-                                display: flex;
-                                align-items: center;
-                                justify-content: space-between;
-                                border-bottom: 1px solid #1E2D4A;
-                            }
-                            .live-badge {
-                                background: #00E676;
-                                color: #000;
-                                font-weight: bold;
-                                padding: 4px 12px;
-                                border-radius: 4px;
-                                font-size: 12px;
-                                letter-spacing: 1px;
-                            }
-                            .video-container {
-                                flex: 1;
-                                display: flex;
-                                justify-content: center;
-                                align-items: center;
-                                background: #000;
-                                position: relative;
-                            }
-                            .video-container video, .video-container img {
-                                width: 100%;
-                                height: 100%;
-                                object-fit: contain;
-                            }
-                            footer {
-                                background: #101826;
-                                padding: 12px 24px;
-                                font-size: 13px;
-                                color: #8e94a0;
-                                display: flex;
-                                justify-content: space-between;
-                                align-items: center;
-                                border-top: 1px solid #1E2D4A;
-                            }
-                            .highlight { color: #00E676; font-family: monospace; font-weight: bold; }
-                            .btn-copy {
-                                background: #00E676;
-                                color: #000;
-                                border: none;
-                                padding: 5px 12px;
-                                border-radius: 4px;
-                                font-weight: bold;
-                                cursor: pointer;
-                                margin-left: 8px;
-                            }
-                        </style>
-                        <script src="/flv.min.js"></script>
-                    </head>
-                    <body>
-                        <header>
-                            <div style="font-size: 18px; font-weight: 700; color: #fff;">
-                                ⚡ CamBridge Pro &bull; Pure GPU Wireless Bridge
-                            </div>
-                            <div class="live-badge">HARDWARE SILICON VPU (&lt;35ms)</div>
-                        </header>
-                        <div class="video-container">
-                            <video id="videoPlayer" autoplay muted playsinline></video>
-                            <img id="mjpegStream" style="display:none;" alt="Live Fallback" />
-                        </div>
-                        <footer>
-                            <div>
-                                OBS Media Source (Direct H.264): <span class="highlight">http://$host:8080/live.flv</span>
-                            </div>
-                            <div>
-                                OBS Browser Source: <span class="highlight">http://$host:8080/obs</span>
-                            </div>
-                        </footer>
-                        <script>
-                            const video = document.getElementById('videoPlayer');
-                            const mjpeg = document.getElementById('mjpegStream');
-
-                            function startMjpegFallback() {
-                                video.style.display = 'none';
-                                mjpeg.style.display = 'block';
-                                mjpeg.src = '/stream.mjpeg?t=' + Date.now();
-                            }
-
-                            if (window.flvjs && flvjs.isSupported()) {
-                                try {
-                                    const player = flvjs.createPlayer({
-                                        type: 'flv',
-                                        isLive: true,
-                                        url: '/live.flv'
-                                    }, {
-                                        enableStashBuffer: false,
-                                        stashInitialSize: 128,
-                                        autoCleanupSourceBuffer: true
-                                    });
-                                    player.attachMediaElement(video);
-                                    player.load();
-                                    player.play().catch(() => { video.muted = true; player.play(); });
-                                } catch (e) {
-                                    startMjpegFallback();
-                                }
-                            } else {
-                                startMjpegFallback();
-                            }
-                        </script>
-                    </body>
-                    </html>
-                """.trimIndent()
-                val resp = newFixedLengthResponse(Response.Status.OK, "text/html", html)
-                resp.addHeader("Cache-Control", "no-cache, no-store, must-revalidate")
-                resp
             }
             uri == "/stream.mjpeg" -> {
                 serveMjpegStream()
@@ -458,14 +223,14 @@ class WebMonitorServer(
   #status {
     position: fixed; top: 10px; left: 10px;
     color: #00E676; font-family: monospace; font-size: 13px;
-    background: rgba(0,0,0,0.6); padding: 4px 10px; border-radius: 4px;
-    z-index: 100;
+    background: rgba(0,0,0,0.7); padding: 5px 12px; border-radius: 4px;
+    z-index: 100; transition: opacity 0.5s;
   }
 </style>
 </head>
 <body>
 <video id="v" autoplay muted playsinline></video>
-<div id="status">⚡ Connecting via WebRTC UDP...</div>
+<div id="status">⚡ Connecting WebRTC...</div>
 <script>
 const video = document.getElementById('v');
 const status = document.getElementById('status');
@@ -473,40 +238,95 @@ const status = document.getElementById('status');
 const WS_HOST = '$host';
 const WS_PORT = 8081;
 
+let currentPc = null;
+let currentWs = null;
+let reconnectTimer = null;
+let heartbeatTimer = null;
+
+function cleanup() {
+  if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null; }
+  if (currentWs) {
+    currentWs.onopen = null;
+    currentWs.onmessage = null;
+    currentWs.onerror = null;
+    currentWs.onclose = null;
+    try { currentWs.close(); } catch(e) {}
+    currentWs = null;
+  }
+  if (currentPc) {
+    currentPc.ontrack = null;
+    currentPc.onicecandidate = null;
+    currentPc.oniceconnectionstatechange = null;
+    try { currentPc.close(); } catch(e) {}
+    currentPc = null;
+  }
+}
+
+function scheduleReconnect(reason) {
+  cleanup();
+  status.textContent = '⚠️ ' + reason + ' — retrying in 2s...';
+  status.style.color = '#FFB300';
+  status.style.opacity = '1';
+  if (!reconnectTimer) {
+    reconnectTimer = setTimeout(() => {
+      reconnectTimer = null;
+      connect();
+    }, 2000);
+  }
+}
+
 function connect() {
-  const ws = new WebSocket('ws://' + WS_HOST + ':' + WS_PORT);
+  if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+  cleanup();
+
+  status.textContent = '⚡ Connecting to ws://' + WS_HOST + ':' + WS_PORT + '...';
+  status.style.color = '#80D8FF';
+  status.style.opacity = '1';
+
+  let ws;
+  try {
+    ws = new WebSocket('ws://' + WS_HOST + ':' + WS_PORT);
+  } catch(e) {
+    scheduleReconnect('WebSocket Error');
+    return;
+  }
+  currentWs = ws;
 
   const pc = new RTCPeerConnection({
-    iceServers: [],          // No STUN needed — local Wi-Fi peer connection
+    iceServers: [
+      { urls: 'stun:stun.l.google.com:19302' }
+    ],
     bundlePolicy: 'max-bundle',
     rtcpMuxPolicy: 'require'
   });
+  currentPc = pc;
 
   pc.ontrack = (event) => {
+    console.log('✅ WebRTC track received:', event.track.kind);
     if (event.streams && event.streams[0]) {
       video.srcObject = event.streams[0];
     } else {
-      const stream = new MediaStream([event.track]);
-      video.srcObject = stream;
+      video.srcObject = new MediaStream([event.track]);
     }
-    status.textContent = '🟢 WebRTC LIVE — Zero-Lag UDP Stream (CamBridge Pro)';
+    video.play().catch(e => console.log('Autoplay:', e));
+    status.textContent = '🟢 WebRTC LIVE — 0-Lag UDP Stream';
     status.style.color = '#00E676';
+    setTimeout(() => { status.style.opacity = '0'; }, 3000);
   };
 
   pc.oniceconnectionstatechange = () => {
+    console.log('ICE state:', pc.iceConnectionState);
     if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
-      status.textContent = '🟢 WebRTC Connected — UDP Stream Active';
+      status.textContent = '🟢 WebRTC Connected — UDP Active';
+      status.style.color = '#00E676';
+      setTimeout(() => { status.style.opacity = '0'; }, 3000);
     } else if (pc.iceConnectionState === 'failed') {
-      status.textContent = '⚠️ ICE Failed — retrying in 2s...';
-      setTimeout(connect, 2000);
-    } else if (pc.iceConnectionState === 'disconnected') {
-      status.textContent = '⚠️ Disconnected — retrying in 2s...';
-      setTimeout(connect, 2000);
+      scheduleReconnect('ICE Failed');
     }
   };
 
   pc.onicecandidate = (event) => {
-    if (event.candidate) {
+    if (event.candidate && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({
         type: 'ice',
         candidate: event.candidate.candidate,
@@ -517,18 +337,25 @@ function connect() {
   };
 
   ws.onopen = () => {
-    status.textContent = '⚡ WebSocket OK — waiting for camera offer...';
+    status.textContent = '⚡ Connected — Waiting for camera offer...';
+    heartbeatTimer = setInterval(() => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'ping' }));
+      }
+    }, 2000);
   };
 
   ws.onmessage = async (event) => {
     try {
       const msg = JSON.parse(event.data);
       if (msg.type === 'offer') {
-        status.textContent = '⚡ SDP offer received — negotiating UDP path...';
+        status.textContent = '⚡ Negotiating WebRTC UDP stream...';
         await pc.setRemoteDescription({ type: 'offer', sdp: msg.sdp });
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
-        ws.send(JSON.stringify({ type: 'answer', sdp: answer.sdp }));
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'answer', sdp: answer.sdp }));
+        }
       } else if (msg.type === 'ice') {
         try {
           await pc.addIceCandidate({
@@ -536,7 +363,7 @@ function connect() {
             sdpMid: msg.sdpMid,
             sdpMLineIndex: msg.sdpMLineIndex
           });
-        } catch (e) { /* ignore stale candidates */ }
+        } catch(e) {}
       }
     } catch (e) {
       console.error('Signaling error:', e);
@@ -544,13 +371,11 @@ function connect() {
   };
 
   ws.onerror = () => {
-    status.textContent = '❌ WebSocket error — retrying in 2s...';
-    status.style.color = '#FF5252';
+    console.warn('WebSocket error');
   };
 
   ws.onclose = () => {
-    status.textContent = '⚠️ WebSocket closed — retrying in 3s...';
-    setTimeout(connect, 3000);
+    scheduleReconnect('Connection Closed');
   };
 }
 

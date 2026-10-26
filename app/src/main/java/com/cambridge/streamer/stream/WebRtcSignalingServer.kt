@@ -59,8 +59,14 @@ class WebRtcSignalingServer(
 
             override fun onMessage(message: NanoWSD.WebSocketFrame) {
                 try {
-                    val msg = JSONObject(message.textPayload ?: return)
-                    when (msg.getString("type")) {
+                    val payload = message.textPayload ?: return
+                    val msg = JSONObject(payload)
+                    when (msg.optString("type")) {
+                        "ping" -> {
+                            try {
+                                send(JSONObject().put("type", "pong").toString())
+                            } catch (_: Exception) {}
+                        }
                         "answer" -> {
                             val sdp = msg.getString("sdp")
                             Log.d(TAG, "Received SDP answer from browser")
@@ -72,7 +78,7 @@ class WebRtcSignalingServer(
                             val sdpMLineIndex = msg.optInt("sdpMLineIndex", 0)
                             engine.handleIceCandidateFromClient(candidate, sdpMid, sdpMLineIndex)
                         }
-                        else -> Log.w(TAG, "Unknown signaling message type: ${msg.getString("type")}")
+                        else -> Log.w(TAG, "Unknown signaling message type: ${msg.optString("type")}")
                     }
                 } catch (e: Exception) {
                     Log.w(TAG, "Error parsing signaling message: ${e.message}")
@@ -84,17 +90,21 @@ class WebRtcSignalingServer(
                 reason: String?,
                 initiatedByRemote: Boolean
             ) {
-                Log.d(TAG, "WebSocket closed: $reason")
-                activeSocket = null
-                engine.signalingCallback = null
+                Log.d(TAG, "WebSocket closed: $reason (code=$code remote=$initiatedByRemote)")
+                if (activeSocket == this) {
+                    activeSocket = null
+                    engine.signalingCallback = null
+                }
             }
 
             override fun onPong(pong: NanoWSD.WebSocketFrame?) {}
 
             override fun onException(exception: IOException?) {
                 Log.w(TAG, "WebSocket exception: ${exception?.message}")
-                activeSocket = null
-                engine.signalingCallback = null
+                if (activeSocket == this) {
+                    activeSocket = null
+                    engine.signalingCallback = null
+                }
             }
         }
     }

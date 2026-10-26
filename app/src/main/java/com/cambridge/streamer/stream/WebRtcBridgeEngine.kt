@@ -45,6 +45,9 @@ class WebRtcBridgeEngine(private val context: Context) {
     private var videoTrack: VideoTrack? = null
     private var peerConnection: PeerConnection? = null
 
+    private val pendingIceCandidates = mutableListOf<IceCandidate>()
+    @Volatile private var isRemoteDescriptionSet = false
+
     /** Set by WebRtcSignalingServer — sends SDP offer + ICE candidates to browser */
     @Volatile var signalingCallback: SignalingCallback? = null
 
@@ -74,13 +77,13 @@ class WebRtcBridgeEngine(private val context: Context) {
                         .createInitializationOptions()
                 )
 
-                // Step 3: Build factory with hardware GPU encoder (Qualcomm/Mali VPU)
+                // Step 3: Build factory with hardware GPU encoder + software fallback (VP8, VP9, H264)
                 factory = PeerConnectionFactory.builder()
                     .setVideoEncoderFactory(
-                        HardwareVideoEncoderFactory(eglBase!!.eglBaseContext, true, false)
+                        DefaultVideoEncoderFactory(eglBase!!.eglBaseContext, true, true)
                     )
                     .setVideoDecoderFactory(
-                        HardwareVideoDecoderFactory(eglBase!!.eglBaseContext)
+                        DefaultVideoDecoderFactory(eglBase!!.eglBaseContext)
                     )
                     .createPeerConnectionFactory()
 
@@ -92,6 +95,7 @@ class WebRtcBridgeEngine(private val context: Context) {
 
                 // Step 5: Create VideoSource — WebRTC reads frames from the surface texture
                 videoSource = factory!!.createVideoSource(/* isScreencast= */ false).also { src ->
+                    src.capturerObserver.onCapturerStarted(true)
                     surfaceHelper!!.startListening { frame ->
                         src.capturerObserver.onFrameCaptured(frame)
                     }
@@ -129,9 +133,14 @@ class WebRtcBridgeEngine(private val context: Context) {
                 // Close any previous session cleanly
                 peerConnection?.close()
                 peerConnection = null
+                isRemoteDescriptionSet = false
+                pendingIceCandidates.clear()
 
-                // No STUN/TURN needed — both phone and OBS PC are on same local Wi-Fi
-                val rtcConfig = PeerConnection.RTCConfiguration(emptyList()).apply {
+                // STUN server provides reflexive ICE fallback for zero-freeze traversal
+                val iceServers = listOf(
+                    PeerConnection.IceServer.builder("stun:stun.l.google.com:19302").createIceServer()
+                )
+                val rtcConfig = PeerConnection.RTCConfiguration(iceServers).apply {
                     sdpSemantics = PeerConnection.SdpSemantics.UNIFIED_PLAN
                     continualGatheringPolicy = PeerConnection.ContinualGatheringPolicy.GATHER_CONTINUALLY
                     iceTransportsType = PeerConnection.IceTransportsType.ALL
@@ -218,7 +227,14 @@ class WebRtcBridgeEngine(private val context: Context) {
                 val desc = SessionDescription(SessionDescription.Type.ANSWER, sdp)
                 peerConnection?.setRemoteDescription(object : SdpObserver {
                     override fun onCreateSuccess(p: SessionDescription?) {}
-                    override fun onSetSuccess() { Log.d(TAG, "✅ Remote SDP answer applied — UDP media should flow now") }
+                    override fun onSetSuccess() {
+                        Log.d(TAG, "✅ Remote SDP answer applied — UDP media should flow now")
+                        isRemoteDescriptionSet = true
+                        for (c in pendingIceCandidates) {
+                            peerConnection?.addIceCandidate(c)
+                        }
+                        pendingIceCandidates.clear()
+                    }
                     override fun onCreateFailure(e: String?) { Log.e(TAG, "Answer create fail: $e") }
                     override fun onSetFailure(e: String?) { Log.e(TAG, "Answer set fail: $e") }
                 }, desc)
@@ -232,7 +248,12 @@ class WebRtcBridgeEngine(private val context: Context) {
     fun handleIceCandidateFromClient(candidate: String, sdpMid: String, sdpMLineIndex: Int) {
         executor.execute {
             try {
-                peerConnection?.addIceCandidate(IceCandidate(sdpMid, sdpMLineIndex, candidate))
+                val iceCandidate = IceCandidate(sdpMid, sdpMLineIndex, candidate)
+                if (isRemoteDescriptionSet) {
+                    peerConnection?.addIceCandidate(iceCandidate)
+                } else {
+                    pendingIceCandidates.add(iceCandidate)
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "handleIceCandidateFromClient error", e)
             }

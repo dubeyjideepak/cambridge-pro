@@ -404,8 +404,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupNetworkUrls() {
         val localIp = NetworkUtils.getLocalIpAddress()
-        binding.tvDirectWebUrl.text = "http://$localIp:8080/obs"
-        binding.tvDirectFlvUrl.text = "WebRTC: http://$localIp:8080/webrtc  |  FLV: /live.flv"
+        binding.tvDirectWebUrl.text = "http://$localIp:8080/webrtc"
+        binding.tvDirectFlvUrl.text = "WebRTC UDP: http://$localIp:8080/obs"
         ensureWebServerStarted()
     }
 
@@ -466,8 +466,8 @@ class MainActivity : AppCompatActivity() {
         if (webRtcSignalingServer == null) {
             try {
                 webRtcSignalingServer = com.cambridge.streamer.stream.WebRtcSignalingServer(8081, webRtcEngine!!)
-                webRtcSignalingServer!!.start()
-                Log.d(TAG, "✅ WebRTC signaling server started on port 8081")
+                webRtcSignalingServer!!.start(0, false)
+                Log.d(TAG, "✅ WebRTC signaling server started on port 8081 (infinite timeout)")
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to start WebRTC signaling server", e)
             }
@@ -918,22 +918,23 @@ class MainActivity : AppCompatActivity() {
             binding.layoutHdmiStandby.visibility = View.GONE
             useCases.add(screenPreview)
 
-            val encoderSurface = videoEncoder?.inputSurface
-            if ((isStreaming || isPhoneCameraTestMode) && encoderSurface != null && encoderSurface.isValid) {
-                val encoderPreview = Preview.Builder()
+            val rtcSurface = webRtcEngine?.inputSurface
+            if (rtcSurface != null && rtcSurface.isValid) {
+                val rtcPreview = Preview.Builder()
                     .setTargetResolution(targetSize)
                     .build()
 
-                encoderPreview.setSurfaceProvider { request: SurfaceRequest ->
-                    if (encoderSurface.isValid) {
-                        request.provideSurface(encoderSurface, cameraExecutor) { result ->
-                            Log.d(TAG, "Encoder surface released: ${result.resultCode}")
+                rtcPreview.setSurfaceProvider { request: SurfaceRequest ->
+                    if (rtcSurface.isValid) {
+                        request.provideSurface(rtcSurface, cameraExecutor) { result ->
+                            Log.d(TAG, "WebRTC surface released: ${result.resultCode}")
                         }
                     } else {
                         request.willNotProvideSurface()
                     }
                 }
-                useCases.add(encoderPreview)
+                useCases.add(rtcPreview)
+                Log.d(TAG, "WebRTC surface bound to CameraX preview use cases")
             }
 
             var frameCount = 0
@@ -1128,25 +1129,23 @@ class MainActivity : AppCompatActivity() {
      * 4. If no camera connected: simulates 60 FPS broadcast studio signal with millisecond clock
      */
     private fun startBroadcastingBridge() {
-        if (isStreaming && videoEncoder != null) return
+        if (isStreaming) return
         isStreaming = true
         isScreenPreviewPeeking = false
 
-        // Ensure Web Bridge is running
+        // Ensure WebRTC Bridge is running
         ensureWebServerStarted()
-
-        // Start dedicated hardware encoder (MediaCodec GPU VPU)
-        startHardwareBridgeEncoder()
+        updateUvcSurfacesForCurrentMode()
 
         // Foreground service prevents OS sleep
-        StreamingForegroundService.start(this, "⚡ LIVE → OBS Pure GPU Bridge (<35ms)")
+        StreamingForegroundService.start(this, "⚡ LIVE → OBS WebRTC UDP (0-Lag 0-Freeze)")
 
         // UI update
         binding.btnToggleBridgeStream.text = "STOP OBS STREAM"
         binding.btnToggleBridgeStream.setBackgroundResource(R.drawable.bg_cta_red)
         binding.btnToggleBridgeStream.setTextColor(Color.WHITE)
-        updateLiveBadge(true, "⚡ ZERO-LAG GPU OBS")
-        showToast("⚡ Pure GPU Bridge Active (<35ms). 0% CPU used.")
+        updateLiveBadge(true, "⚡ WEBRTC UDP 0-LAG")
+        showToast("⚡ WebRTC UDP Active (<35ms, Zero Freeze)")
     }
 
     private fun startHardwareBridgeEncoder() {
@@ -1221,7 +1220,6 @@ class MainActivity : AppCompatActivity() {
             stopCameraSimulation()
             isPhoneCameraTestMode = true
             ensureWebServerStarted()
-            startHardwareBridgeEncoder()
 
             runOnUiThread {
                 binding.btnTogglePhoneCameraTest.text = "⏹ STOP PHONE CAM"

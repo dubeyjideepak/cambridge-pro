@@ -1,6 +1,6 @@
 {
-  "versionCode": 23,
-  "versionName": "1.3.0",
-  "apkUrl": "https://github.com/dubeyjideepak/cambridge-pro/releases/download/v1.3.0/CamBridgePro.apk",
-  "changelog": "Zero-Freeze WebRTC UDP Pipeline: Replaced HTTP-FLV (TCP) with WebRTC SRTP over UDP. 35 freeze events in 50s (proven by FFmpeg analysis) are now eliminated. Human motion through frame will no longer cause freezes. Add OBS Browser Source at http://<phone-ip>:8080/webrtc for zero-lag live feed."
+  "versionCode": 24,
+  "versionName": "1.3.1",
+  "apkUrl": "https://github.com/dubeyjideepak/cambridge-pro/releases/download/v1.3.1/CamBridgePro.apk",
+  "changelog": "Pure WebRTC UDP Engine Fix: 1) Eliminated redundant FLV/MediaCodec pipeline to free CPU/GPU. 2) Fixed WebRTC reconnect loop with clean single-session handling, infinite socket timeout, and heartbeat ping. 3) Activated frame capture observer so OBS immediately receives 60 FPS live video. 4) Added STUN and hardware+software codec fallback."
 }

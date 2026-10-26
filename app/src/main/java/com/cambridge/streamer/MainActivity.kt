@@ -467,9 +467,15 @@ class MainActivity : AppCompatActivity() {
             webRtcEngine!!.init {
                 // onReady: inputSurface is valid — attach it to UVC camera output
                 val surface = webRtcEngine?.inputSurface
-                if (surface != null && surface.isValid && activeBackend == CameraBackend.NATIVE_UVC) {
-                    nativeUvcEngine?.addSurface(surface)
-                    Log.d(TAG, "✅ WebRTC inputSurface attached to UVC engine on ready")
+                if (surface != null && surface.isValid) {
+                    if (activeBackend == CameraBackend.NATIVE_UVC) {
+                        nativeUvcEngine?.addSurface(surface)
+                        Log.d(TAG, "✅ WebRTC inputSurface attached to UVC engine on ready")
+                    } else if (isPhoneCameraTestMode) {
+                        runOnUiThread {
+                            cameraProvider?.let { bindCamera(currentMode) }
+                        }
+                    }
                 }
             }
         }
@@ -933,34 +939,31 @@ class MainActivity : AppCompatActivity() {
             )
             webRtcEngine?.setTextureSize(targetSize.width, targetSize.height)
 
-            val screenPreview = Preview.Builder()
+            val preview = Preview.Builder()
                 .setTargetResolution(targetSize)
                 .build()
-                .also { it.setSurfaceProvider(binding.viewFinder.surfaceProvider) }
-
-            binding.viewFinder.visibility = View.VISIBLE
-            binding.uvcViewFinder.visibility = View.GONE
-            binding.layoutHdmiStandby.visibility = View.GONE
-            useCases.add(screenPreview)
 
             val rtcSurface = webRtcEngine?.inputSurface
             if (rtcSurface != null && rtcSurface.isValid) {
-                val rtcPreview = Preview.Builder()
-                    .setTargetResolution(targetSize)
-                    .build()
-
-                rtcPreview.setSurfaceProvider { request: SurfaceRequest ->
+                preview.setSurfaceProvider { request: SurfaceRequest ->
                     if (rtcSurface.isValid) {
                         request.provideSurface(rtcSurface, cameraExecutor) { result ->
                             Log.d(TAG, "WebRTC surface released: ${result.resultCode}")
                         }
                     } else {
-                        request.willNotProvideSurface()
+                        binding.viewFinder.surfaceProvider.onSurfaceRequested(request)
                     }
                 }
-                useCases.add(rtcPreview)
-                Log.d(TAG, "WebRTC surface bound to CameraX preview use cases")
+                binding.viewFinder.visibility = View.GONE
+                Log.d(TAG, "WebRTC inputSurface bound to single CameraX preview")
+            } else {
+                preview.setSurfaceProvider(binding.viewFinder.surfaceProvider)
+                binding.viewFinder.visibility = View.VISIBLE
             }
+
+            binding.uvcViewFinder.visibility = View.GONE
+            binding.layoutHdmiStandby.visibility = View.GONE
+            useCases.add(preview)
 
             var frameCount = 0
             var totalFrames = 0L

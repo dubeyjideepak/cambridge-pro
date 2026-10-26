@@ -323,6 +323,7 @@ class MainActivity : AppCompatActivity() {
                     binding.tvUsbStatus.setTextColor(Color.parseColor("#00E676"))
                     binding.layoutHdmiStandby.visibility = View.GONE
                     binding.viewFinder.visibility = View.GONE
+                    webRtcEngine?.setTextureSize(width, height)
                     updateUvcSurfacesForCurrentMode()
                 }
             }
@@ -907,6 +908,7 @@ class MainActivity : AppCompatActivity() {
                 if (captureWidth > 0) captureWidth else 1920,
                 if (captureHeight > 0) captureHeight else 1080
             )
+            webRtcEngine?.setTextureSize(targetSize.width, targetSize.height)
 
             val screenPreview = Preview.Builder()
                 .setTargetResolution(targetSize)

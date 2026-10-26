@@ -61,6 +61,18 @@ class WebRtcBridgeEngine(private val context: Context) {
     @Volatile var isReady = false
         private set
 
+    fun setTextureSize(width: Int, height: Int) {
+        executor.execute {
+            try {
+                surfaceHelper?.setTextureSize(width, height)
+                surfaceHelper?.surfaceTexture?.setDefaultBufferSize(width, height)
+                Log.d(TAG, "WebRTC surface texture size updated: ${width}x${height}")
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to update texture size", e)
+            }
+        }
+    }
+
     // ─── Initialization ────────────────────────────────────────────────────────
 
     fun init(onReady: (() -> Unit)? = null) {
@@ -91,7 +103,9 @@ class WebRtcBridgeEngine(private val context: Context) {
                 surfaceHelper = SurfaceTextureHelper.create(
                     "WebRtcCaptureSurface",
                     eglBase!!.eglBaseContext
-                )
+                ).also {
+                    it.setTextureSize(1920, 1080)
+                }
 
                 // Step 5: Create VideoSource — WebRTC reads frames from the surface texture
                 videoSource = factory!!.createVideoSource(/* isScreencast= */ false).also { src ->
@@ -109,7 +123,9 @@ class WebRtcBridgeEngine(private val context: Context) {
                 inputSurface = Surface(st)
 
                 // Step 7: Wrap as a VideoTrack (sent to the browser via PeerConnection)
-                videoTrack = factory!!.createVideoTrack("CAMv0", videoSource)
+                videoTrack = factory!!.createVideoTrack("CAMv0", videoSource).also {
+                    it.setEnabled(true)
+                }
 
                 isReady = true
                 Log.d(TAG, "✅ WebRTC engine ready. inputSurface=${inputSurface.hashCode()}")

@@ -309,21 +309,43 @@ function connect() {
       video.srcObject = new MediaStream([event.track]);
     }
     video.play().catch(e => console.log('Autoplay:', e));
-    status.textContent = '🟢 WebRTC LIVE — 0-Lag UDP Stream';
+    status.textContent = '🟢 WebRTC Stream Received — Starting Playback...';
     status.style.color = '#00E676';
-    setTimeout(() => { status.style.opacity = '0'; }, 3000);
   };
 
   pc.oniceconnectionstatechange = () => {
     console.log('ICE state:', pc.iceConnectionState);
     if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
-      status.textContent = '🟢 WebRTC Connected — UDP Active';
+      status.textContent = '🟢 WebRTC UDP Connected — Awaiting frames...';
       status.style.color = '#00E676';
-      setTimeout(() => { status.style.opacity = '0'; }, 3000);
     } else if (pc.iceConnectionState === 'failed') {
       scheduleReconnect('ICE Failed');
     }
   };
+
+  let lastCheckTime = performance.now();
+  let lastTotalFrames = 0;
+
+  setInterval(() => {
+    if (video.videoWidth > 0) {
+      let fpsStr = '';
+      if ('getVideoPlaybackQuality' in video) {
+        const q = video.getVideoPlaybackQuality();
+        const now = performance.now();
+        const dt = (now - lastCheckTime) / 1000;
+        const df = q.totalVideoFrames - lastTotalFrames;
+        const curFps = dt > 0 ? Math.round(df / dt) : 0;
+        lastCheckTime = now;
+        lastTotalFrames = q.totalVideoFrames;
+        fpsStr = ' | ' + curFps + ' FPS';
+      }
+      status.textContent = '🟢 LIVE: ' + video.videoWidth + 'x' + video.videoHeight + fpsStr + ' (UDP 0-Lag)';
+      status.style.color = '#00E676';
+    } else if (currentPc && (currentPc.iceConnectionState === 'connected' || currentPc.iceConnectionState === 'completed')) {
+      status.textContent = '⚡ WebRTC Connected — Waiting for camera frames from phone...';
+      status.style.color = '#80D8FF';
+    }
+  }, 1000);
 
   pc.onicecandidate = (event) => {
     if (event.candidate && ws.readyState === WebSocket.OPEN) {

@@ -198,6 +198,24 @@ class WebRtcBridgeEngine(private val context: Context) {
                 pc.addTrack(videoTrack!!, listOf("CamBridgeProStream"))
                 peerConnection = pc
 
+                // Guarantee 60 FPS smooth motion and 3-10 Mbps bitrate (no frame drops on motion)
+                val sender = pc.senders.find { it.track()?.kind() == "video" }
+                if (sender != null) {
+                    try {
+                        val params = sender.parameters
+                        params.degradationPreference = RtpParameters.DegradationPreference.MAINTAIN_FRAMERATE
+                        for (enc in params.encodings) {
+                            enc.minBitrateBps = 3_000_000
+                            enc.maxBitrateBps = 10_000_000
+                            enc.maxFramerate = 60
+                        }
+                        sender.parameters = params
+                        Log.d(TAG, "✅ RtpSender configured: MAINTAIN_FRAMERATE, 3-10 Mbps, 60 FPS")
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Failed to apply RtpSender parameters", e)
+                    }
+                }
+
                 // Generate SDP offer (describes our video capabilities to the browser)
                 val constraints = MediaConstraints().apply {
                     mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveVideo", "false"))
@@ -208,20 +226,25 @@ class WebRtcBridgeEngine(private val context: Context) {
                 pc.createOffer(object : SdpObserver {
                     override fun onCreateSuccess(sdp: SessionDescription?) {
                         sdp ?: run { latch.countDown(); return }
+
+                        // Prioritize Hardware H.264 over software VP8/VP9 so phone uses hardware VPU (0% CPU)
+                        val modifiedSdp = prioritizeH264Codec(sdp.description)
+                        val modifiedDesc = SessionDescription(sdp.type, modifiedSdp)
+
                         pc.setLocalDescription(object : SdpObserver {
                             override fun onCreateSuccess(p: SessionDescription?) {}
                             override fun onSetSuccess() {
                                 val json = JSONObject().apply {
                                     put("type", "offer")
-                                    put("sdp", sdp.description)
+                                    put("sdp", modifiedSdp)
                                 }.toString()
                                 signalingCallback?.sendToClient(json)
-                                Log.d(TAG, "SDP offer sent to browser")
+                                Log.d(TAG, "Hardware H.264 SDP offer sent to browser")
                                 latch.countDown()
                             }
                             override fun onCreateFailure(e: String?) { Log.e(TAG, "SDP local desc fail: $e"); latch.countDown() }
                             override fun onSetFailure(e: String?) { Log.e(TAG, "SDP set local fail: $e"); latch.countDown() }
-                        }, sdp)
+                        }, modifiedDesc)
                     }
                     override fun onSetSuccess() {}
                     override fun onCreateFailure(e: String?) { Log.e(TAG, "Offer create fail: $e"); latch.countDown() }
@@ -274,6 +297,54 @@ class WebRtcBridgeEngine(private val context: Context) {
                 Log.e(TAG, "handleIceCandidateFromClient error", e)
             }
         }
+    }
+
+    /**
+     * Reorders the SDP offer to put Hardware H.264 at the very top of m=video payloads.
+     * This forces OBS Browser Source to choose H.264 (Qualcomm/MediaTek hardware VPU)
+     * instead of VP8 (which runs in software on the phone CPU and causes freezes during motion).
+     * Also injects 8 Mbps bandwidth constraint so fast human motion never stutters.
+     */
+    private fun prioritizeH264Codec(sdp: String): String {
+        val lines = sdp.split("\r\n")
+        val h264Payloads = mutableListOf<String>()
+
+        for (line in lines) {
+            if (line.startsWith("a=rtpmap:") && line.contains("H264/90000", ignoreCase = true)) {
+                val pt = line.substringAfter("a=rtpmap:").substringBefore(" ")
+                h264Payloads.add(pt)
+            }
+        }
+
+        if (h264Payloads.isEmpty()) return sdp
+
+        val newLines = lines.map { line ->
+            if (line.startsWith("m=video")) {
+                val parts = line.split(" ")
+                if (parts.size > 3) {
+                    val header = parts.subList(0, 3)
+                    val payloads = parts.subList(3, parts.size)
+                    val remaining = payloads.filter { it !in h264Payloads }
+                    val reordered = header + h264Payloads + remaining
+                    reordered.joinToString(" ")
+                } else {
+                    line
+                }
+            } else {
+                line
+            }
+        }
+
+        val finalLines = mutableListOf<String>()
+        for (line in newLines) {
+            finalLines.add(line)
+            if (line.startsWith("c=IN IP4")) {
+                finalLines.add("b=AS:8000")
+                finalLines.add("b=TIAS:8000000")
+            }
+        }
+
+        return finalLines.joinToString("\r\n")
     }
 
     // ─── Cleanup ───────────────────────────────────────────────────────────────

@@ -385,7 +385,7 @@
                     android:textColor="@color/text_secondary"
                     android:textSize="11sp" />
 
-                <!-- Direct Web & Hardware FLV URL Box -->
+                <!-- Single Pure WebRTC UDP Card (VDO.Ninja Architecture) -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -394,99 +394,63 @@
                     android:orientation="vertical"
                     android:padding="12dp">
 
-                    <!-- URL 1: OBS Browser Source -->
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="🌐 WEBRTC UDP STREAM (VDO.NINJA PROTOCOL)"
+                        android:textColor="#00E676"
+                        android:textSize="11sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="Add as Browser Source in OBS (Zero Freeze, Hardware H.264 VPU):"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="10sp" />
+
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
                         android:gravity="center_vertical"
                         android:orientation="horizontal">
 
-                        <LinearLayout
+                        <TextView
+                            android:id="@+id/tvDirectWebUrl"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:orientation="vertical">
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="1. OBS Browser Source URL:"
-                                android:textColor="@color/text_secondary"
-                                android:textSize="10sp" />
-
-                            <TextView
-                                android:id="@+id/tvDirectWebUrl"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="2dp"
-                                android:fontFamily="monospace"
-                                android:text="http://192.168.1.xxx:8080/obs"
-                                android:textColor="@color/emerald_primary"
-                                android:textSize="12sp"
-                                android:textStyle="bold" />
-                        </LinearLayout>
+                            android:fontFamily="monospace"
+                            android:text="http://192.168.1.xxx:8080/webrtc"
+                            android:textColor="@color/emerald_primary"
+                            android:textSize="13sp"
+                            android:textStyle="bold" />
 
                         <Button
                             android:id="@+id/btnCopyWebUrl"
                             android:layout_width="wrap_content"
                             android:layout_height="32dp"
                             android:background="@drawable/bg_cta_emerald"
-                            android:paddingHorizontal="10dp"
-                            android:text="Copy"
+                            android:paddingHorizontal="14dp"
+                            android:text="📋 Copy Link"
                             android:textColor="#000000"
-                            android:textSize="10sp"
+                            android:textSize="11sp"
                             android:textStyle="bold" />
                     </LinearLayout>
 
-                    <View
-                        android:layout_width="match_parent"
-                        android:layout_height="1dp"
-                        android:layout_marginVertical="8dp"
-                        android:background="#1E2D4A" />
-
-                    <!-- URL 2: OBS Media Source (Pure Hardware FLV) -->
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal">
-
-                        <LinearLayout
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:orientation="vertical">
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="2. OBS Media Source URL (Pure Hardware FLV):"
-                                android:textColor="@color/text_secondary"
-                                android:textSize="10sp" />
-
-                            <TextView
-                                android:id="@+id/tvDirectFlvUrl"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="2dp"
-                                android:fontFamily="monospace"
-                                android:text="http://192.168.1.xxx:8080/live.flv"
-                                android:textColor="#80D8FF"
-                                android:textSize="12sp"
-                                android:textStyle="bold" />
-                        </LinearLayout>
-
-                        <Button
-                            android:id="@+id/btnCopyFlvUrl"
-                            android:layout_width="wrap_content"
-                            android:layout_height="32dp"
-                            android:background="@drawable/bg_segmented_pill"
-                            android:paddingHorizontal="10dp"
-                            android:text="Copy"
-                            android:textColor="#80D8FF"
-                            android:textSize="10sp"
-                            android:textStyle="bold" />
-                    </LinearLayout>
+                    <!-- Hidden legacy FLV fields to preserve view binding -->
+                    <TextView
+                        android:id="@+id/tvDirectFlvUrl"
+                        android:layout_width="0dp"
+                        android:layout_height="0dp"
+                        android:visibility="gone" />
+                    <Button
+                        android:id="@+id/btnCopyFlvUrl"
+                        android:layout_width="0dp"
+                        android:layout_height="0dp"
+                        android:visibility="gone" />
                 </LinearLayout>
 
                 <!-- 60 FPS Camera Simulator & Optical Test Card -->

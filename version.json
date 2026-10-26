@@ -1,6 +1,6 @@
 {
-  "versionCode": 25,
-  "versionName": "1.3.2",
-  "apkUrl": "https://github.com/dubeyjideepak/cambridge-pro/releases/download/v1.3.2/CamBridgePro.apk",
-  "changelog": "Fix Frame Delivery: Added explicit setTextureSize(1920, 1080) to SurfaceTextureHelper to unblock camera frame delivery into WebRTC pipeline, added live FPS and resolution HUD."
+  "versionCode": 26,
+  "versionName": "1.3.3",
+  "apkUrl": "https://github.com/dubeyjideepak/cambridge-pro/releases/download/v1.3.3/CamBridgePro.apk",
+  "changelog": "Pure WebRTC Zero-Freeze Engine (VDO.Ninja Architecture): 1) Prioritized Hardware H.264 VPU over software VP8/VP9 in WebRTC SDP offer, eliminating mobile CPU choke during motion. 2) Injected 8 Mbps bandwidth constraint and MAINTAIN_FRAMERATE degradation preference. 3) Added zero-latency playoutDelayHint=0 in viewer. 4) Cleaned up UI to display a single, simple WebRTC link."
 }

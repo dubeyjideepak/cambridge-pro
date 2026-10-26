@@ -406,7 +406,6 @@ class MainActivity : AppCompatActivity() {
     private fun setupNetworkUrls() {
         val localIp = NetworkUtils.getLocalIpAddress()
         binding.tvDirectWebUrl.text = "http://$localIp:8080/webrtc"
-        binding.tvDirectFlvUrl.text = "WebRTC UDP: http://$localIp:8080/obs"
         ensureWebServerStarted()
     }
 

@@ -308,6 +308,11 @@ function connect() {
     } else {
       video.srcObject = new MediaStream([event.track]);
     }
+    try {
+      if (event.receiver && 'playoutDelayHint' in event.receiver) {
+        event.receiver.playoutDelayHint = 0;
+      }
+    } catch(e) {}
     video.play().catch(e => console.log('Autoplay:', e));
     status.textContent = '🟢 WebRTC Stream Received — Starting Playback...';
     status.style.color = '#00E676';

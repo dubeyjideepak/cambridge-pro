@@ -293,13 +293,15 @@ function connect() {
   currentWs = ws;
 
   const pc = new RTCPeerConnection({
-    iceServers: [
-      { urls: 'stun:stun.l.google.com:19302' }
-    ],
+    iceServers: [], // Pure local LAN / Hotspot — zero DNS delay, zero external dependency
     bundlePolicy: 'max-bundle',
     rtcpMuxPolicy: 'require'
   });
   currentPc = pc;
+
+  video.muted = true;
+  video.defaultMuted = true;
+  video.playsInline = true;
 
   pc.ontrack = (event) => {
     console.log('✅ WebRTC track received:', event.track.kind);
@@ -308,23 +310,29 @@ function connect() {
     } else {
       video.srcObject = new MediaStream([event.track]);
     }
+    video.muted = true;
     try {
       if (event.receiver && 'playoutDelayHint' in event.receiver) {
         event.receiver.playoutDelayHint = 0;
       }
     } catch(e) {}
     video.play().catch(e => console.log('Autoplay:', e));
-    status.textContent = '🟢 WebRTC Stream Received — Starting Playback...';
-    status.style.color = '#00E676';
+    status.textContent = '⚡ WebRTC Track Attached — Awaiting Video Frames...';
+    status.style.color = '#80D8FF';
   };
 
   pc.oniceconnectionstatechange = () => {
     console.log('ICE state:', pc.iceConnectionState);
     if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
-      status.textContent = '🟢 WebRTC UDP Connected — Live';
+      status.textContent = '🟢 WebRTC UDP Connected — Stream Live!';
       status.style.color = '#00E676';
       video.play().catch(e => console.log('Play on ICE connected:', e));
+    } else if (pc.iceConnectionState === 'checking') {
+      status.textContent = '⚡ Checking Direct UDP Link to ' + WS_HOST + '...';
+      status.style.color = '#FFD54F';
     } else if (pc.iceConnectionState === 'failed') {
+      status.textContent = '⚠️ ICE Connection Failed — Retrying...';
+      status.style.color = '#FF5252';
       scheduleReconnect('ICE Failed');
     }
   };

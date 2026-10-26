@@ -1,6 +1,6 @@
 {
-  "versionCode": 28,
-  "versionName": "1.3.5",
-  "apkUrl": "https://github.com/dubeyjideepak/cambridge-pro/releases/download/v1.3.5/CamBridgePro.apk",
-  "changelog": "Direct Wi-Fi / Hotspot ICE Candidate Fix: 1) Synthesizes direct local LAN host candidates (Wi-Fi and Hotspot IPs) so browser never gets stuck in ICE checking when phone has cellular active. 2) Injected client-side WS_HOST direct UDP candidate. 3) Added robust onplaying/loadedmetadata auto-start handlers."
+  "versionCode": 29,
+  "versionName": "1.3.6",
+  "apkUrl": "https://github.com/dubeyjideepak/cambridge-pro/releases/download/v1.3.6/CamBridgePro.apk",
+  "changelog": "Pure Offline Mobile Hotspot Zero-Delay Engine: 1) Removed public STUN server dependencies from both phone and browser to prevent DNS/ICE timeouts on offline hotspot. 2) Auto-synthesizes local host candidates for all active network interfaces (including 10.x.x.x mobile hotspot). 3) Injected WS_HOST direct UDP candidate in client browser."
 }

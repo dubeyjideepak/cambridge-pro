@@ -152,13 +152,10 @@ class WebRtcBridgeEngine(private val context: Context) {
                 isRemoteDescriptionSet = false
                 pendingIceCandidates.clear()
 
-                // STUN server provides reflexive ICE fallback for zero-freeze traversal
-                val iceServers = listOf(
-                    PeerConnection.IceServer.builder("stun:stun.l.google.com:19302").createIceServer()
-                )
-                val rtcConfig = PeerConnection.RTCConfiguration(iceServers).apply {
+                // Pure Local LAN / Mobile Hotspot — zero internet dependency, zero STUN DNS timeout
+                val rtcConfig = PeerConnection.RTCConfiguration(emptyList()).apply {
                     sdpSemantics = PeerConnection.SdpSemantics.UNIFIED_PLAN
-                    continualGatheringPolicy = PeerConnection.ContinualGatheringPolicy.GATHER_CONTINUALLY
+                    continualGatheringPolicy = PeerConnection.ContinualGatheringPolicy.GATHER_ONCE
                     iceTransportsType = PeerConnection.IceTransportsType.ALL
                     candidateNetworkPolicy = PeerConnection.CandidateNetworkPolicy.ALL
                     enableIceGatheringOnAnyAddressPorts = true
@@ -190,8 +187,7 @@ class WebRtcBridgeEngine(private val context: Context) {
                             if (parts.size >= 8) {
                                 val currentIp = parts[4]
                                 val port = parts[5]
-                                val endpoints = com.cambridge.streamer.utils.NetworkUtils.getNetworkEndpoints()
-                                val targetIps = listOfNotNull(endpoints.wifiRouterIp, endpoints.hotspotIp, endpoints.bestIp).distinct()
+                                val targetIps = com.cambridge.streamer.utils.NetworkUtils.getAllLocalIpv4Addresses()
                                 for (tip in targetIps) {
                                     if (tip != currentIp && tip != "127.0.0.1") {
                                         val patchedSdp = c.sdp.replace(" $currentIp $port ", " $tip $port ")

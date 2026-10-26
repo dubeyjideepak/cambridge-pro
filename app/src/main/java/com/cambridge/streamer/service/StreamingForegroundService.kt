@@ -43,6 +43,7 @@ class StreamingForegroundService : Service() {
     }
 
     private var wakeLock: PowerManager.WakeLock? = null
+    private var wifiLock: android.net.wifi.WifiManager.WifiLock? = null
 
     // ─── Service Lifecycle ─────────────────────────────────────────────────────
 
@@ -56,6 +57,25 @@ class StreamingForegroundService : Service() {
                 PowerManager.PARTIAL_WAKE_LOCK,
                 "CamBridgePro::StreamingWakeLock"
             ).apply { acquire(6 * 60 * 60 * 1000L) } // max 6 hours
+
+        // Wi-Fi low-latency lock (API 29+): disables Wi-Fi power saving and jitter
+        try {
+            val wifiManager = applicationContext.getSystemService(Context.WIFI_SERVICE) as? android.net.wifi.WifiManager
+            if (wifiManager != null) {
+                val mode = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                    android.net.wifi.WifiManager.WIFI_MODE_FULL_LOW_LATENCY
+                } else {
+                    @Suppress("DEPRECATION")
+                    android.net.wifi.WifiManager.WIFI_MODE_FULL_HIGH_PERF
+                }
+                wifiLock = wifiManager.createWifiLock(mode, "CamBridgePro::LowLatencyWifiLock").apply {
+                    setReferenceCounted(false)
+                    acquire()
+                }
+            }
+        } catch (_: Exception) {
+            // Ignored if device does not support low latency lock
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -74,6 +94,8 @@ class StreamingForegroundService : Service() {
         super.onDestroy()
         wakeLock?.let { if (it.isHeld) it.release() }
         wakeLock = null
+        wifiLock?.let { if (it.isHeld) it.release() }
+        wifiLock = null
     }
 
     override fun onBind(intent: Intent?): IBinder? = null

@@ -1,6 +1,6 @@
 {
-  "versionCode": 29,
-  "versionName": "1.3.6",
-  "apkUrl": "https://github.com/dubeyjideepak/cambridge-pro/releases/download/v1.3.6/CamBridgePro.apk",
-  "changelog": "Pure Offline Mobile Hotspot Zero-Delay Engine: 1) Removed public STUN server dependencies from both phone and browser to prevent DNS/ICE timeouts on offline hotspot. 2) Auto-synthesizes local host candidates for all active network interfaces (including 10.x.x.x mobile hotspot). 3) Injected WS_HOST direct UDP candidate in client browser."
+  "versionCode": 30,
+  "versionName": "1.3.7",
+  "apkUrl": "https://github.com/dubeyjideepak/cambridge-pro/releases/download/v1.3.7/CamBridgePro.apk",
+  "changelog": "v1.3.7 Ultra-Low Latency Release: 1) Hardware WIFI_MODE_FULL_LOW_LATENCY lock (API 29+) in foreground service to eliminate Wi-Fi power-save jitter. 2) Client-side jitterBufferTarget = 0 & playoutDelayHint = 0 for zero-latency frame presentation. 3) Offline direct mobile hotspot WebRTC zero-STUN engine."
 }

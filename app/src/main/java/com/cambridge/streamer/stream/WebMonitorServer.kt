@@ -312,8 +312,13 @@ function connect() {
     }
     video.muted = true;
     try {
-      if (event.receiver && 'playoutDelayHint' in event.receiver) {
-        event.receiver.playoutDelayHint = 0;
+      if (event.receiver) {
+        if ('playoutDelayHint' in event.receiver) {
+          event.receiver.playoutDelayHint = 0;
+        }
+        if ('jitterBufferTarget' in event.receiver) {
+          event.receiver.jitterBufferTarget = 0;
+        }
       }
     } catch(e) {}
     video.play().catch(e => console.log('Autoplay:', e));

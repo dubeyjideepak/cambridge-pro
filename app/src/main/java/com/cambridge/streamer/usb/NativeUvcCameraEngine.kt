@@ -151,19 +151,25 @@ class NativeUvcCameraEngine(
                             Log.d(TAG, "Available UVC mode: ${s.width}x${s.height} @ ${s.fps} FPS, type=${s.type}, fpsList=${s.fpsList}")
                         }
 
-                        // Prioritize MJPEG (type = FRAME_FORMAT_MJPEG = 1) for 1080p 60fps without USB 2.0 5fps bottleneck
-                        val mjpegSizes = sizes?.filter { it.type == com.serenegiant.usb.UVCCamera.FRAME_FORMAT_MJPEG } ?: emptyList()
-                        val pool = if (mjpegSizes.isNotEmpty()) mjpegSizes else (sizes ?: emptyList())
-
-                        val preferred = pool.firstOrNull { it.width == 1920 && it.height == 1080 }
-                            ?: pool.firstOrNull { it.width == 1280 && it.height == 720 }
-                            ?: pool.firstOrNull()
+                        // 1. Look for 1080p MJPEG first (ideal for USB 2.0 without choking)
+                        // 2. Look for any 1080p mode
+                        // 3. Look for 720p MJPEG
+                        // 4. Look for any 720p mode
+                        // 5. Fallback to any supported mode
+                        val preferred = sizes?.firstOrNull { it.width == 1920 && it.height == 1080 && it.type == com.serenegiant.usb.UVCCamera.FRAME_FORMAT_MJPEG }
+                            ?: sizes?.firstOrNull { it.width == 1920 && it.height == 1080 }
+                            ?: sizes?.firstOrNull { it.width == 1280 && it.height == 720 && it.type == com.serenegiant.usb.UVCCamera.FRAME_FORMAT_MJPEG }
+                            ?: sizes?.firstOrNull { it.width == 1280 && it.height == 720 }
+                            ?: sizes?.firstOrNull()
 
                         if (preferred != null) {
-                            // Force highest supported hardware framerate (60 FPS or 50/30 FPS)
-                            val maxFps = preferred.fpsList?.maxOrNull() ?: 60
-                            val targetFps = if (maxFps > 0) maxFps else 60
-                            preferred.fps = targetFps
+                            // Respect the camera's hardware supported FPS!
+                            // IMPORTANT: Sony A7 IV supports 60p at 1080p, but only 30p/25p at 720p.
+                            // Never force 60 FPS if the camera hardware does not list it!
+                            val validFps = preferred.fpsList?.maxOrNull()
+                            if (validFps != null && validFps > 0) {
+                                preferred.fps = validFps
+                            }
 
                             currentWidth = preferred.width
                             currentHeight = preferred.height

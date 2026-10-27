@@ -11,8 +11,8 @@ android {
         applicationId = "com.cambridge.streamer"
         minSdk = 26
         targetSdk = 34
-        versionCode = 34
-        versionName = "1.4.2"
+        versionCode = 35
+        versionName = "1.4.3"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

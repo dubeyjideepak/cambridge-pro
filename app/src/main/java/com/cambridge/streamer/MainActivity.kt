@@ -315,6 +315,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun initUvcSurfaceHolder() {
+        binding.uvcViewFinder.setZOrderMediaOverlay(true)
         binding.uvcViewFinder.holder.addCallback(object : SurfaceHolder.Callback {
             override fun surfaceCreated(holder: SurfaceHolder) {
                 Log.d(TAG, "uvcViewFinder surface created: ${holder.surface}")
@@ -323,6 +324,7 @@ class MainActivity : AppCompatActivity() {
 
             override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
                 Log.d(TAG, "uvcViewFinder surface changed: ${width}x${height}")
+                nativeUvcEngine?.addSurface(holder.surface)
             }
 
             override fun surfaceDestroyed(holder: SurfaceHolder) {

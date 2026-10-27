@@ -1,6 +1,6 @@
 {
-  "versionCode": 33,
-  "versionName": "1.4.1",
-  "apkUrl": "https://github.com/dubeyjideepak/cambridge-pro/releases/download/v1.4.1/CamBridgePro.apk",
-  "changelog": "v1.4.1 High-Grade 60 FPS Video File Feeder: Loop any 1080p60 high-action video file from phone storage directly through hardware H.264 VPU into WebRTC and SRT streams. Direct 60 FPS clock simulator routing."
+  "versionCode": 34,
+  "versionName": "1.4.2",
+  "apkUrl": "https://github.com/dubeyjideepak/cambridge-pro/releases/download/v1.4.2/CamBridgePro.apk",
+  "changelog": "v1.4.2 Sony A7M4 Direct USB Streaming & Hotspot WebRTC Fix: 1) Added explicit UVC device selection on USB permission grant for direct Sony camera streaming. 2) Fixed AndroidNetworkMonitor in WebRTC so Hotspot sockets bind properly. 3) Corrected unique candidate foundations for Chrome. 4) Added 1-tap fallback banner."
 }

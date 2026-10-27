@@ -160,7 +160,10 @@ class WebMonitorServer(
         val uri = session.uri
 
         return when {
-            uri == "/live.flv" || uri == "/webrtc" || uri == "/webrtc.html" || uri == "/obs" || uri == "/obs.html" || uri == "/" || uri == "/index.html" -> {
+            uri == "/live.flv" -> {
+                serveFlvStream()
+            }
+            uri == "/webrtc" || uri == "/webrtc.html" || uri == "/obs" || uri == "/obs.html" || uri == "/" || uri == "/index.html" -> {
                 notifyClientActivity()
                 serveWebRtcPage(session)
             }
@@ -219,21 +222,44 @@ class WebMonitorServer(
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { width: 100%; height: 100%; background: #000; overflow: hidden; }
-  video { width: 100vw; height: 100vh; object-fit: contain; display: block; }
+  video, #mjpegView { width: 100vw; height: 100vh; object-fit: contain; display: block; }
   #status {
     position: fixed; top: 10px; left: 10px;
     color: #00E676; font-family: monospace; font-size: 13px;
     background: rgba(0,0,0,0.7); padding: 5px 12px; border-radius: 4px;
     z-index: 100; transition: opacity 0.5s;
   }
+  #fallbackBar {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    background: rgba(20, 20, 20, 0.92); border: 1px solid #FFA000; border-radius: 8px;
+    padding: 10px 18px; z-index: 200; display: none; text-align: center;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.8); font-family: system-ui, -apple-system, sans-serif;
+  }
+  #fallbackBar p { color: #FFD54F; font-size: 13px; margin-bottom: 8px; }
+  .btn-action {
+    background: #00E676; color: #000; font-weight: 700; border: none;
+    padding: 6px 14px; border-radius: 5px; cursor: pointer; font-size: 12px; margin-right: 8px;
+  }
+  .btn-retry {
+    background: rgba(255,255,255,0.15); color: #FFF; border: 1px solid #666;
+    padding: 6px 12px; border-radius: 5px; cursor: pointer; font-size: 12px;
+  }
 </style>
 </head>
 <body>
 <video id="v" autoplay muted playsinline></video>
+<img id="mjpegView" style="display:none;" />
 <div id="status">⚡ Connecting WebRTC...</div>
+<div id="fallbackBar">
+  <p>⚠️ WebRTC UDP handshake delayed on Mobile Hotspot interface.</p>
+  <button class="btn-action" onclick="switchToMjpeg()">⚡ Switch to Direct Stream</button>
+  <button class="btn-retry" onclick="location.reload()">🔄 Retry WebRTC</button>
+</div>
 <script>
 const video = document.getElementById('v');
+const mjpegView = document.getElementById('mjpegView');
 const status = document.getElementById('status');
+const fallbackBar = document.getElementById('fallbackBar');
 
 const WS_HOST = '$host';
 const WS_PORT = 8081;
@@ -242,9 +268,22 @@ let currentPc = null;
 let currentWs = null;
 let reconnectTimer = null;
 let heartbeatTimer = null;
+let frameCheckTimer = null;
+let trackAttachedTime = 0;
+
+function switchToMjpeg() {
+  cleanup();
+  video.style.display = 'none';
+  mjpegView.style.display = 'block';
+  mjpegView.src = '/stream.mjpeg?t=' + Date.now();
+  status.textContent = '🟢 LIVE: Direct Stream Active (<50ms)';
+  status.style.color = '#00E676';
+  fallbackBar.style.display = 'none';
+}
 
 function cleanup() {
   if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null; }
+  if (frameCheckTimer) { clearInterval(frameCheckTimer); frameCheckTimer = null; }
   if (currentWs) {
     currentWs.onopen = null;
     currentWs.onmessage = null;
@@ -322,6 +361,7 @@ function connect() {
       }
     } catch(e) {}
     video.play().catch(e => console.log('Autoplay:', e));
+    trackAttachedTime = Date.now();
     status.textContent = '⚡ WebRTC Track Attached — Awaiting Video Frames...';
     status.style.color = '#80D8FF';
   };
@@ -331,6 +371,7 @@ function connect() {
     if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
       status.textContent = '🟢 WebRTC UDP Connected — Stream Live!';
       status.style.color = '#00E676';
+      fallbackBar.style.display = 'none';
       video.play().catch(e => console.log('Play on ICE connected:', e));
     } else if (pc.iceConnectionState === 'checking') {
       status.textContent = '⚡ Checking Direct UDP Link to ' + WS_HOST + '...';
@@ -338,6 +379,7 @@ function connect() {
     } else if (pc.iceConnectionState === 'failed') {
       status.textContent = '⚠️ ICE Connection Failed — Retrying...';
       status.style.color = '#FF5252';
+      fallbackBar.style.display = 'block';
       scheduleReconnect('ICE Failed');
     }
   };
@@ -347,6 +389,7 @@ function connect() {
   };
   video.onplaying = () => {
     console.log('Video started playing: ' + video.videoWidth + 'x' + video.videoHeight);
+    fallbackBar.style.display = 'none';
   };
   document.body.addEventListener('click', () => {
     video.play().catch(e => console.log('Click play:', e));
@@ -355,8 +398,9 @@ function connect() {
   let lastCheckTime = performance.now();
   let lastTotalFrames = 0;
 
-  setInterval(() => {
+  frameCheckTimer = setInterval(() => {
     if (video.videoWidth > 0) {
+      fallbackBar.style.display = 'none';
       let fpsStr = '';
       if ('getVideoPlaybackQuality' in video) {
         const q = video.getVideoPlaybackQuality();
@@ -370,6 +414,8 @@ function connect() {
       }
       status.textContent = '🟢 LIVE: ' + video.videoWidth + 'x' + video.videoHeight + fpsStr + ' (UDP 0-Lag)';
       status.style.color = '#00E676';
+    } else if (trackAttachedTime > 0 && (Date.now() - trackAttachedTime > 4500)) {
+      fallbackBar.style.display = 'block';
     } else if (currentPc && (currentPc.iceConnectionState === 'connected' || currentPc.iceConnectionState === 'completed')) {
       status.textContent = '⚡ WebRTC Connected — Waiting for camera frames from phone...';
       status.style.color = '#80D8FF';
@@ -414,20 +460,30 @@ function connect() {
             sdpMid: msg.sdpMid,
             sdpMLineIndex: msg.sdpMLineIndex
           });
-          // Injected direct host candidate using WS_HOST (exact phone IP)
-          if (msg.candidate && msg.candidate.includes('typ host') && msg.candidate.includes('udp')) {
-            const parts = msg.candidate.split(' ');
-            if (parts.length >= 8 && parts[4] !== WS_HOST) {
-              const patched = msg.candidate.replace(parts[4], WS_HOST);
-              console.log('⚡ Direct WS_HOST candidate injected:', WS_HOST, parts[5]);
+        } catch(e) {
+          console.warn('addIceCandidate error:', e);
+        }
+
+        // Injected direct host candidate using WS_HOST (exact phone Hotspot / Wi-Fi IP)
+        if (msg.candidate && msg.candidate.toLowerCase().includes('typ host') && msg.candidate.toLowerCase().includes('udp')) {
+          const parts = msg.candidate.split(' ');
+          if (parts.length >= 8 && parts[4] !== WS_HOST) {
+            const uniqueFnd = 'direct' + Math.floor(Math.random() * 100000);
+            const patched = msg.candidate
+              .replace(/^candidate:\S+/, 'candidate:' + uniqueFnd)
+              .replace(' ' + parts[4] + ' ', ' ' + WS_HOST + ' ');
+            console.log('⚡ Direct WS_HOST candidate injected:', WS_HOST, parts[5], uniqueFnd);
+            try {
               await pc.addIceCandidate({
                 candidate: patched,
                 sdpMid: msg.sdpMid,
                 sdpMLineIndex: msg.sdpMLineIndex
               });
+            } catch(e) {
+              console.warn('Direct candidate error:', e);
             }
           }
-        } catch(e) {}
+        }
       }
     } catch (e) {
       console.error('Signaling error:', e);

@@ -89,8 +89,17 @@ class WebRtcBridgeEngine(private val context: Context) {
                         .createInitializationOptions()
                 )
 
-                // Step 3: Build factory with hardware GPU encoder + software fallback (VP8, VP9, H264)
+                // Step 3: Build factory with disableNetworkMonitor = true
+                // CRITICAL FOR HOTSPOT: Android's NetworkMonitorAutoDetect only monitors default internet
+                // interface (Cellular rmnet0) and ignores the Hotspot AP interface (swlan0/ap0/10.x.x.x).
+                // Disabling the network monitor forces libwebrtc to bind to ALL network interfaces via OS sockets.
+                val options = PeerConnectionFactory.Options().apply {
+                    disableNetworkMonitor = true
+                    networkIgnoreMask = 0
+                }
+
                 factory = PeerConnectionFactory.builder()
+                    .setOptions(options)
                     .setVideoEncoderFactory(
                         DefaultVideoEncoderFactory(eglBase!!.eglBaseContext, true, true)
                     )
@@ -182,7 +191,7 @@ class WebRtcBridgeEngine(private val context: Context) {
                         signalingCallback?.sendToClient(json)
 
                         // If this is a host UDP candidate, also synthesize candidates for all device local IPs (Wi-Fi, Hotspot)
-                        if (c.sdp.contains("typ host") && c.sdp.contains("udp")) {
+                        if (c.sdp.contains("typ host", ignoreCase = true) && c.sdp.contains("udp", ignoreCase = true)) {
                             val parts = c.sdp.split(" ")
                             if (parts.size >= 8) {
                                 val currentIp = parts[4]
@@ -190,7 +199,11 @@ class WebRtcBridgeEngine(private val context: Context) {
                                 val targetIps = com.cambridge.streamer.utils.NetworkUtils.getAllLocalIpv4Addresses()
                                 for (tip in targetIps) {
                                     if (tip != currentIp && tip != "127.0.0.1") {
-                                        val patchedSdp = c.sdp.replace(" $currentIp $port ", " $tip $port ")
+                                        // Give synthesized candidate a unique foundation so Chrome does not reject it
+                                        val newFoundation = "c${Math.abs(tip.hashCode())}"
+                                        val patchedSdp = c.sdp
+                                            .replaceFirst(parts[0], "candidate:$newFoundation")
+                                            .replace(" $currentIp $port ", " $tip $port ")
                                         val patchedJson = JSONObject().apply {
                                             put("type", "ice")
                                             put("candidate", patchedSdp)
@@ -198,7 +211,7 @@ class WebRtcBridgeEngine(private val context: Context) {
                                             put("sdpMLineIndex", c.sdpMLineIndex)
                                         }.toString()
                                         signalingCallback?.sendToClient(patchedJson)
-                                        Log.d(TAG, "⚡ Synthesized local LAN candidate: $tip:$port")
+                                        Log.d(TAG, "⚡ Synthesized local LAN candidate: $tip:$port (foundation=$newFoundation)")
                                     }
                                 }
                             }

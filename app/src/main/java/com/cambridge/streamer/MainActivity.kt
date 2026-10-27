@@ -188,18 +188,21 @@ class MainActivity : AppCompatActivity() {
                     if (granted && device != null) {
                         Log.d(TAG, "USB permission granted for ${device.productName}")
                         usbDeviceManager?.onPermissionGranted(device)
+                        nativeUvcEngine?.selectDevice(device)
                         runOnUiThread {
-                            cameraProvider?.let { bindCamera(currentMode) }
+                            showToast("✅ Connected to ${device.productName ?: "Camera"}! Starting stream...")
                         }
                     } else {
-                        showToast("USB permission denied for capture card")
+                        showToast("USB permission denied for camera")
                     }
                 }
                 UsbManager.ACTION_USB_DEVICE_ATTACHED -> {
+                    val device: UsbDevice? = intent.getParcelableExtra(UsbManager.EXTRA_DEVICE)
                     usbDeviceManager?.checkForConnectedCaptureCard()
-                    nativeUvcEngine?.start()
-                    runOnUiThread {
-                        bindCamera(currentMode)
+                    if (device != null) {
+                        nativeUvcEngine?.selectDevice(device)
+                    } else {
+                        nativeUvcEngine?.checkConnectedDevices()
                     }
                 }
                 UsbManager.ACTION_USB_DEVICE_DETACHED -> {
@@ -276,6 +279,7 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         setupNetworkUrls()
+        nativeUvcEngine?.checkConnectedDevices()
     }
 
     override fun onDestroy() {
@@ -354,12 +358,17 @@ class MainActivity : AppCompatActivity() {
                         width >= 1280 -> "720p HD"
                         else -> "${width}x${height}"
                     }
-                    binding.tvUsbStatus.text = "✅ HDMI: ${device.productName ?: "Capture Card"} ($resTag $width x $height)"
+                    val deviceName = device.productName ?: "Sony Camera"
+                    binding.tvUsbStatus.text = "✅ HDMI: $deviceName ($resTag $width x $height)"
                     binding.tvUsbStatus.setTextColor(Color.parseColor("#00E676"))
+                    binding.tvVideoTelemetry.text = "🟢 VIDEO IN: $deviceName $resTag @ 60 FPS"
+                    binding.tvVideoTelemetry.setTextColor(Color.parseColor("#00E676"))
                     binding.layoutHdmiStandby.visibility = View.GONE
                     binding.viewFinder.visibility = View.GONE
+                    binding.uvcViewFinder.visibility = View.VISIBLE
                     webRtcEngine?.setTextureSize(width, height)
                     updateUvcSurfacesForCurrentMode()
+                    showToast("🎬 $deviceName Connected! ($resTag @ 60 FPS)")
                 }
             }
 
@@ -1070,13 +1079,14 @@ class MainActivity : AppCompatActivity() {
             binding.viewFinder.visibility = View.GONE
 
             nativeUvcEngine?.start()
+            nativeUvcEngine?.checkConnectedDevices()
 
             if (nativeUvcEngine?.isCameraOpened() == true) {
                 activeBackend = CameraBackend.NATIVE_UVC
                 binding.layoutHdmiStandby.visibility = View.GONE
                 binding.uvcViewFinder.visibility = View.VISIBLE
                 updateUvcSurfacesForCurrentMode()
-            } else {
+            } else if (activeBackend != CameraBackend.NATIVE_UVC) {
                 // Standby: Wait for capture card. Phone internal cameras are NEVER activated.
                 activeBackend = CameraBackend.NONE
                 runOnUiThread {

@@ -251,6 +251,11 @@ class NativeUvcCameraEngine(
             })
 
             cameraHelper = helper
+            try {
+                helper.registerCallback()
+            } catch (e: Exception) {
+                Log.w(TAG, "registerCallback error", e)
+            }
 
             // Check if device is already connected at launch
             val devices = helper.deviceList
@@ -262,6 +267,32 @@ class NativeUvcCameraEngine(
         } catch (e: Exception) {
             Log.e(TAG, "Failed to initialize NativeUvcCameraEngine", e)
             listener.onUvcError(null, e)
+        }
+    }
+
+    fun selectDevice(device: UsbDevice) {
+        start()
+        val helper = cameraHelper ?: return
+        try {
+            Log.d(TAG, "⚡ Explicit selectDevice called for: ${device.productName ?: device.deviceName}")
+            helper.selectDevice(device)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to select device: ${device.productName}", e)
+        }
+    }
+
+    fun checkConnectedDevices() {
+        start()
+        val helper = cameraHelper ?: return
+        try {
+            val devices = helper.deviceList
+            if (!devices.isNullOrEmpty()) {
+                val uvcDevice = devices[0]
+                Log.d(TAG, "⚡ Found attached UVC device: ${uvcDevice.productName ?: uvcDevice.deviceName}")
+                helper.selectDevice(uvcDevice)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error checking connected devices", e)
         }
     }
 

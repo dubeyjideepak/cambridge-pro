@@ -156,9 +156,10 @@ class NativeUvcCameraEngine(
                         // 3. Look for 720p MJPEG
                         // 4. Look for any 720p mode
                         // 5. Fallback to any supported mode
-                        val preferred = sizes?.firstOrNull { it.width == 1920 && it.height == 1080 && it.type == com.serenegiant.usb.UVCCamera.FRAME_FORMAT_MJPEG }
+                        // MJPEG format is type 7 (UVC_VS_FRAME_MJPEG) or 1 (FRAME_FORMAT_MJPEG)
+                        val preferred = sizes?.firstOrNull { it.width == 1920 && it.height == 1080 && (it.type == 7 || it.type == com.serenegiant.usb.UVCCamera.FRAME_FORMAT_MJPEG) }
                             ?: sizes?.firstOrNull { it.width == 1920 && it.height == 1080 }
-                            ?: sizes?.firstOrNull { it.width == 1280 && it.height == 720 && it.type == com.serenegiant.usb.UVCCamera.FRAME_FORMAT_MJPEG }
+                            ?: sizes?.firstOrNull { it.width == 1280 && it.height == 720 && (it.type == 7 || it.type == com.serenegiant.usb.UVCCamera.FRAME_FORMAT_MJPEG) }
                             ?: sizes?.firstOrNull { it.width == 1280 && it.height == 720 }
                             ?: sizes?.firstOrNull()
 

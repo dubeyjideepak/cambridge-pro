@@ -316,6 +316,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun initUvcSurfaceHolder() {
         binding.uvcViewFinder.setZOrderMediaOverlay(true)
+        binding.uvcViewFinder.holder.setFormat(android.graphics.PixelFormat.TRANSLUCENT)
         binding.uvcViewFinder.holder.addCallback(object : SurfaceHolder.Callback {
             override fun surfaceCreated(holder: SurfaceHolder) {
                 Log.d(TAG, "uvcViewFinder surface created: ${holder.surface}")
@@ -363,14 +364,15 @@ class MainActivity : AppCompatActivity() {
                     val deviceName = device.productName ?: "Sony Camera"
                     binding.tvUsbStatus.text = "✅ HDMI: $deviceName ($resTag $width x $height)"
                     binding.tvUsbStatus.setTextColor(Color.parseColor("#00E676"))
-                    binding.tvVideoTelemetry.text = "🟢 VIDEO IN: $deviceName $resTag @ 60 FPS"
+                    binding.tvVideoTelemetry.text = "🟢 VIDEO IN: $deviceName $resTag"
                     binding.tvVideoTelemetry.setTextColor(Color.parseColor("#00E676"))
                     binding.layoutHdmiStandby.visibility = View.GONE
                     binding.viewFinder.visibility = View.GONE
+                    binding.viewFinderContainer.setBackgroundColor(Color.TRANSPARENT)
                     binding.uvcViewFinder.visibility = View.VISIBLE
                     webRtcEngine?.setTextureSize(width, height)
                     updateUvcSurfacesForCurrentMode()
-                    showToast("🎬 $deviceName Connected! ($resTag @ 60 FPS)")
+                    showToast("🎬 $deviceName Connected! ($resTag)")
                 }
             }
 

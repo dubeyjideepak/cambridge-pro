@@ -1,6 +1,6 @@
 {
-  "versionCode": 36,
-  "versionName": "1.4.4",
-  "apkUrl": "https://github.com/dubeyjideepak/cambridge-pro/releases/download/v1.4.4/CamBridgePro.apk",
-  "changelog": "v1.4.4 Sony A7M4 UVC Format Descriptor & Surface Transparency: 1) Matches both UVC_VS_FRAME_MJPEG (type 7) and standard MJPEG (type 1) descriptors. 2) Removed static 60 FPS telemetry string. 3) Set SurfaceView holder format to TRANSLUCENT and cleared container background to guarantee non-black viewfinder."
+  "versionCode": 37,
+  "versionName": "1.5.0",
+  "apkUrl": "https://github.com/dubeyjideepak/cambridge-pro/releases/download/v1.5.0/CamBridgePro.apk",
+  "changelog": "v1.5.0 Wireless RTMP Ingest & Clean UI: 1) Embedded RTMP Ingest Server (0.0.0.0:1935) ingests Sony A7 IV 1080p 60fps wireless network streams over both Mobile Hotspot (192.168.43.1) and shared Wi-Fi simultaneously. 2) Hardware H.264 preview decoder for smooth 60fps camera monitoring. 3) Direct zero-reencode restreaming to YouTube, Facebook, Instagram, and OBS Studio. 4) Complete UI redesign with 4 focused landing screens (Live, Broadcast, Overlays, Settings) and clean 2x2 grid cards."
 }

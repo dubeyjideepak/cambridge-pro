@@ -1,12 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/bg_emerald_dark">
 
     <!-- ═══════════════════════════════════════════════════════════════════════
-         TOP VIEWFINDER SECTION (16:9 Cinema Aspect Ratio in Portrait)
+         1. TOP VIEWFINDER SECTION (16:9 Cinema Aspect Ratio in Portrait)
          ═══════════════════════════════════════════════════════════════════════ -->
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/viewFinderContainer"
@@ -23,6 +24,7 @@
             android:id="@+id/viewFinder"
             android:layout_width="0dp"
             android:layout_height="0dp"
+            android:visibility="gone"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
@@ -39,7 +41,7 @@
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent" />
 
-        <!-- Standby Placeholder: App only accepts HDMI capture card input -->
+        <!-- Standby Placeholder: Waiting for Camera Input -->
         <LinearLayout
             android:id="@+id/layoutHdmiStandby"
             android:layout_width="wrap_content"
@@ -47,7 +49,7 @@
             android:background="@drawable/bg_glass_card"
             android:gravity="center"
             android:orientation="vertical"
-            android:padding="20dp"
+            android:padding="16dp"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
@@ -56,26 +58,26 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="🎥 4K HDMI BROADCAST INPUT"
+                android:text="🎥 CAMBRIDGE PRO 4K"
                 android:textColor="#FFFFFF"
-                android:textSize="15sp"
+                android:textSize="14sp"
                 android:textStyle="bold" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
-                android:text="Waiting for USB-C Capture Card from Camera..."
+                android:text="Sony Wi-Fi Ingest or USB-C Capture Card"
                 android:textColor="@color/text_secondary"
-                android:textSize="11sp" />
+                android:textSize="10sp" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="2dp"
-                android:text="Internal cameras disabled — HDMI Only"
+                android:text="Select source in Live tab below"
                 android:textColor="@color/emerald_accent"
-                android:textSize="10sp" />
+                android:textSize="9sp" />
         </LinearLayout>
 
         <!-- Power Saver Standby: Shown when streaming with screen preview stopped -->
@@ -86,7 +88,7 @@
             android:background="@drawable/bg_glass_card"
             android:gravity="center"
             android:orientation="vertical"
-            android:padding="20dp"
+            android:padding="16dp"
             android:visibility="gone"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
@@ -98,27 +100,27 @@
                 android:layout_height="wrap_content"
                 android:text="⚡ BROADCAST ACTIVE"
                 android:textColor="#00E676"
-                android:textSize="15sp"
+                android:textSize="14sp"
                 android:textStyle="bold" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:text="Screen preview stopped to save CPU/GPU &amp; prevent heating"
+                android:layout_marginTop="3dp"
+                android:text="Screen preview stopped to save CPU/GPU"
                 android:textColor="@color/text_secondary"
-                android:textSize="11sp" />
+                android:textSize="10sp" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
-                android:text="Tap '👁️ Preview' below to peek camera framing anytime"
+                android:layout_marginTop="3dp"
+                android:text="Tap '👁️ Preview' below to peek framing"
                 android:textColor="@color/emerald_accent"
-                android:textSize="10sp" />
+                android:textSize="9sp" />
         </LinearLayout>
 
-        <!-- Live Overlays Layer: Lower-Third Name Strap + Scrolling Ticker + Jhanki + QR -->
+        <!-- Live Graphics & Overlay Canvas -->
         <com.cambridge.streamer.overlay.OverlayView
             android:id="@+id/overlayView"
             android:layout_width="0dp"
@@ -128,31 +130,31 @@
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent" />
 
-        <!-- Top HUD Bar: Live Status & HDMI Pills -->
+        <!-- Top HUD Floating Status Bar -->
         <LinearLayout
             android:id="@+id/topHudBar"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_margin="10dp"
+            android:layout_margin="8dp"
             android:gravity="center_vertical"
             android:orientation="horizontal"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent">
 
-            <!-- Live Indicator Badge -->
+            <!-- Live Status Pill -->
             <LinearLayout
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:background="@drawable/bg_glass_card"
                 android:gravity="center_vertical"
-                android:paddingHorizontal="10dp"
-                android:paddingVertical="5dp">
+                android:paddingHorizontal="8dp"
+                android:paddingVertical="4dp">
 
                 <View
                     android:id="@+id/dotLiveIndicator"
-                    android:layout_width="8dp"
-                    android:layout_height="8dp"
+                    android:layout_width="7dp"
+                    android:layout_height="7dp"
                     android:background="@drawable/ios_switch_thumb"
                     android:backgroundTint="#757575" />
 
@@ -160,76 +162,75 @@
                     android:id="@+id/tvLiveStatus"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="6dp"
-                    android:letterSpacing="0.05"
+                    android:layout_marginStart="5dp"
                     android:text="STANDBY"
-                    android:textColor="#FFFFFF"
-                    android:textSize="10sp"
+                    android:textColor="#9E9E9E"
+                    android:textSize="9sp"
                     android:textStyle="bold" />
             </LinearLayout>
-
-            <!-- HDMI Card Status Pill -->
-            <TextView
-                android:id="@+id/tvUsbStatus"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="6dp"
-                android:background="@drawable/bg_glass_card"
-                android:paddingHorizontal="10dp"
-                android:paddingVertical="5dp"
-                android:text="HDMI: Connect Card"
-                android:textColor="@color/gold_accent"
-                android:textSize="10sp"
-                android:textStyle="bold" />
 
             <View
                 android:layout_width="0dp"
                 android:layout_height="1dp"
                 android:layout_weight="1" />
 
-            <!-- Git Auto-Update Pill -->
+            <!-- Input Device Pill -->
+            <TextView
+                android:id="@+id/tvUsbStatus"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_glass_card"
+                android:paddingHorizontal="8dp"
+                android:paddingVertical="4dp"
+                android:text="⚡ Input: Ready"
+                android:textColor="#FF9800"
+                android:textSize="9sp"
+                android:textStyle="bold" />
+
+            <!-- Update Pill -->
             <TextView
                 android:id="@+id/btnCheckUpdate"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
                 android:background="@drawable/bg_glass_card"
-                android:paddingHorizontal="10dp"
-                android:paddingVertical="5dp"
-                android:text="🔄 Update"
+                android:clickable="true"
+                android:focusable="true"
+                android:paddingHorizontal="8dp"
+                android:paddingVertical="4dp"
+                android:text="🔄 v1.5.0"
                 android:textColor="@color/emerald_accent"
-                android:textSize="10sp"
+                android:textSize="9sp"
                 android:textStyle="bold" />
         </LinearLayout>
 
-        <!-- Hidden compat views for bonding/preview -->
-        <LinearLayout
-            android:id="@+id/pillBondingStatus"
+        <!-- Preview Peek Button (Floating Bottom-Right) -->
+        <Button
+            android:id="@+id/btnTogglePreview"
             android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:visibility="gone"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent">
-            <TextView
-                android:id="@+id/tvBondingDetails"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="⚡ Ready" />
-        </LinearLayout>
-
+            android:layout_height="30dp"
+            android:layout_margin="6dp"
+            android:background="@drawable/bg_segmented_pill"
+            android:paddingHorizontal="10dp"
+            android:text="👁️ Preview: ON"
+            android:textColor="@color/emerald_accent"
+            android:textSize="9sp"
+            android:textStyle="bold"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent" />
     </androidx.constraintlayout.widget.ConstraintLayout>
 
     <!-- ═══════════════════════════════════════════════════════════════════════
-         TELEMETRY BAR (HDMI Video FPS & Audio VU Meter)
+         2. HARDWARE TELEMETRY BAR
          ═══════════════════════════════════════════════════════════════════════ -->
     <LinearLayout
         android:id="@+id/hardwareTelemetryBar"
         android:layout_width="0dp"
-        android:layout_height="wrap_content"
+        android:layout_height="32dp"
         android:background="#0A1813"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:paddingHorizontal="14dp"
-        android:paddingVertical="6dp"
+        android:paddingHorizontal="10dp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/viewFinderContainer">
@@ -239,676 +240,573 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:fontFamily="monospace"
-            android:text="🎥 VIDEO IN: Standby"
-            android:textColor="@color/gold_accent"
-            android:textSize="10sp"
-            android:textStyle="bold" />
+            android:text="🎥 VIDEO: Standby"
+            android:textColor="#80FFFFFF"
+            android:textSize="9sp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginHorizontal="6dp"
+            android:text="|"
+            android:textColor="#33FFFFFF"
+            android:textSize="9sp" />
 
         <TextView
             android:id="@+id/tvAudioTelemetry"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
             android:fontFamily="monospace"
             android:text="🎙️ AUDIO: Standby"
-            android:textColor="@color/text_secondary"
-            android:textSize="10sp"
-            android:textStyle="bold" />
+            android:textColor="#80FFFFFF"
+            android:textSize="9sp" />
 
         <View
             android:layout_width="0dp"
             android:layout_height="1dp"
             android:layout_weight="1" />
 
-        <TextView
-            android:id="@+id/btnTogglePreview"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:background="@drawable/bg_segmented_pill"
-            android:paddingHorizontal="8dp"
-            android:paddingVertical="4dp"
-            android:text="👁️ Preview"
-            android:textColor="@color/emerald_accent"
-            android:textSize="10sp"
-            android:textStyle="bold" />
-
+        <!-- Latency pill -->
         <TextView
             android:id="@+id/btnToggleLatencyMode"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="6dp"
-            android:background="@drawable/bg_segmented_pill"
-            android:paddingHorizontal="8dp"
-            android:paddingVertical="4dp"
+            android:background="@drawable/bg_glass_card"
+            android:clickable="true"
+            android:focusable="true"
+            android:paddingHorizontal="6dp"
+            android:paddingVertical="2dp"
             android:text="⚡ Zero-Lag"
-            android:textColor="@color/live_green"
-            android:textSize="10sp"
+            android:textColor="@color/emerald_accent"
+            android:textSize="8sp"
             android:textStyle="bold" />
+
+        <!-- Hidden bonding status views referenced by code -->
+        <LinearLayout
+            android:id="@+id/pillBondingStatus"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:visibility="gone">
+            <TextView
+                android:id="@+id/tvBondingDetails"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Bonding: Off" />
+        </LinearLayout>
     </LinearLayout>
 
     <!-- ═══════════════════════════════════════════════════════════════════════
-         EMERALD TWO-TAB NAVIGATION BAR
+         3. MAIN DEDICATED LANDING SCREENS (4 Focused Tabs)
          ═══════════════════════════════════════════════════════════════════════ -->
-    <LinearLayout
-        android:id="@+id/tabBarContainer"
+    <FrameLayout
+        android:id="@+id/mainContentContainer"
         android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginHorizontal="12dp"
-        android:layout_marginTop="8dp"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
+        android:layout_height="0dp"
+        app:layout_constraintBottom_toTopOf="@id/layoutBottomNav"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/hardwareTelemetryBar">
 
-        <RadioGroup
-            android:id="@+id/rgModeSelector"
+        <!-- ─────────────────────────────────────────────────────────────────
+             SCREEN 1: 🎥 LIVE CAMERA SOURCE (Visible by default)
+             ───────────────────────────────────────────────────────────────── -->
+        <ScrollView
+            android:id="@+id/layoutScreenLive"
             android:layout_width="match_parent"
-            android:layout_height="44dp"
-            android:background="@drawable/bg_segmented_pill"
-            android:checkedButton="@+id/rbBridgeMode"
-            android:orientation="horizontal"
-            android:padding="3dp">
+            android:layout_height="match_parent"
+            android:fillViewport="true"
+            android:visibility="visible">
 
-            <RadioButton
-                android:id="@+id/rbBridgeMode"
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1"
-                android:button="@null"
-                android:gravity="center"
-                android:text="⚡ 1. Direct OBS Bridge"
-                android:textColor="#FFFFFF"
-                android:textSize="12sp"
-                android:textStyle="bold" />
-
-            <RadioButton
-                android:id="@+id/rbStudioMode"
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1"
-                android:button="@null"
-                android:gravity="center"
-                android:text="🎬 2. Multi-Broadcaster"
-                android:textColor="#FFFFFF"
-                android:textSize="12sp"
-                android:textStyle="bold" />
-        </RadioGroup>
-    </LinearLayout>
-
-    <!-- ═══════════════════════════════════════════════════════════════════════
-         SCROLLABLE CONTROL PANEL (TAB-AWARE)
-         ═══════════════════════════════════════════════════════════════════════ -->
-    <androidx.core.widget.NestedScrollView
-        android:id="@+id/scrollControls"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:layout_marginTop="6dp"
-        android:fillViewport="true"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/tabBarContainer">
-
-        <LinearLayout
-            android:id="@+id/bottomControlCard"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:padding="12dp">
-
-            <!-- ─────────────────────────────────────────────────────────────────
-                 TAB 1 PANEL: DIRECT OBS BRIDGE (Zero Encoding/Decoding)
-                 ───────────────────────────────────────────────────────────────── -->
             <LinearLayout
-                android:id="@+id/layoutBridgeMode"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:background="@drawable/bg_glass_card"
                 android:orientation="vertical"
-                android:padding="14dp"
-                android:visibility="visible">
+                android:padding="12dp">
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="⚡ ZERO-LAG DIRECT OBS ENGINE (&lt;50ms)"
-                    android:textColor="@color/emerald_primary"
-                    android:textSize="13sp"
+                    android:letterSpacing="0.1"
+                    android:text="📡  CAMERA SOURCE SELECTION"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="10sp"
                     android:textStyle="bold" />
 
-                <TextView
-                    android:layout_width="wrap_content"
+                <!-- 2x2 Grid of Sources -->
+                <GridLayout
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="3dp"
-                    android:text="Bypasses H.264 double-encoding. Feeds raw frames straight from USB to OBS over local Wi-Fi."
-                    android:textColor="@color/text_secondary"
-                    android:textSize="11sp" />
+                    android:layout_marginTop="8dp"
+                    android:columnCount="2"
+                    android:rowCount="2">
 
-                <!-- Dual Connection WebRTC Cards (VDO.Ninja Architecture) -->
+                    <!-- Source 1: Wi-Fi / Hotspot (Sony Ingest Server) -->
+                    <LinearLayout
+                        android:id="@+id/srcCardWifi"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_columnWeight="1"
+                        android:layout_margin="4dp"
+                        android:background="@drawable/bg_glass_card"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:gravity="center"
+                        android:orientation="vertical"
+                        android:padding="14dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="📡"
+                            android:textSize="24sp" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:gravity="center"
+                            android:text="Sony Wi-Fi Ingest"
+                            android:textColor="#FFFFFF"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/tvWifiIngestUrl"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:gravity="center"
+                            android:text="rtmp://…:1935/live"
+                            android:textColor="@color/emerald_accent"
+                            android:textSize="9sp" />
+
+                        <TextView
+                            android:id="@+id/tvWifiIngestStatus"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:text="🟢 Active (Hotspot + Wi-Fi)"
+                            android:textColor="@color/emerald_accent"
+                            android:textSize="8sp" />
+                    </LinearLayout>
+
+                    <!-- Source 2: USB-C Direct UVC -->
+                    <LinearLayout
+                        android:id="@+id/srcCardUsb"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_columnWeight="1"
+                        android:layout_margin="4dp"
+                        android:background="@drawable/bg_glass_card"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:gravity="center"
+                        android:orientation="vertical"
+                        android:padding="14dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="🔌"
+                            android:textSize="24sp" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:gravity="center"
+                            android:text="USB-C Direct"
+                            android:textColor="#FFFFFF"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:gravity="center"
+                            android:text="HDMI Capture Card"
+                            android:textColor="@color/text_muted"
+                            android:textSize="9sp" />
+
+                        <TextView
+                            android:id="@+id/tvUvcStatus"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:text="Auto-detected on plug"
+                            android:textColor="@color/text_muted"
+                            android:textSize="8sp" />
+                    </LinearLayout>
+
+                    <!-- Source 3: Phone Rear Camera -->
+                    <LinearLayout
+                        android:id="@+id/srcCardPhone"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_columnWeight="1"
+                        android:layout_margin="4dp"
+                        android:background="@drawable/bg_glass_card"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:gravity="center"
+                        android:orientation="vertical"
+                        android:padding="14dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="📱"
+                            android:textSize="24sp" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:gravity="center"
+                            android:text="Phone Camera"
+                            android:textColor="#FFFFFF"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:gravity="center"
+                            android:text="Optical Rear Cam"
+                            android:textColor="@color/text_muted"
+                            android:textSize="9sp" />
+
+                        <TextView
+                            android:id="@+id/tvPhoneCamStatus"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:text="Tap to Test"
+                            android:textColor="@color/text_muted"
+                            android:textSize="8sp" />
+                    </LinearLayout>
+
+                    <!-- Source 4: 60 FPS Test Pattern -->
+                    <LinearLayout
+                        android:id="@+id/srcCardTest"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_columnWeight="1"
+                        android:layout_margin="4dp"
+                        android:background="@drawable/bg_glass_card"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:gravity="center"
+                        android:orientation="vertical"
+                        android:padding="14dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="🎬"
+                            android:textSize="24sp" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:gravity="center"
+                            android:text="60 FPS Test"
+                            android:textColor="#FFFFFF"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:gravity="center"
+                            android:text="GPU Clock Pattern"
+                            android:textColor="@color/text_muted"
+                            android:textSize="9sp" />
+
+                        <TextView
+                            android:id="@+id/tvTestStatus"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:text="Tap to Run"
+                            android:textColor="@color/text_muted"
+                            android:textSize="8sp" />
+                    </LinearLayout>
+                </GridLayout>
+
+                <!-- Sony A7 IV Connection Guide Card -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
-                    android:background="@drawable/bg_input_box"
+                    android:background="@drawable/bg_glass_card"
                     android:orientation="vertical"
                     android:padding="12dp">
 
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="🌐 WEBRTC UDP STREAM (VDO.NINJA ZERO-FREEZE)"
-                        android:textColor="#00E676"
-                        android:textSize="12sp"
+                        android:text="📷  SONY A7 IV WIRELESS STREAMING SETUP"
+                        android:textColor="@color/gold_accent"
+                        android:textSize="10sp"
                         android:textStyle="bold" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="3dp"
-                        android:text="Hardware H.264 VPU stream directly into OBS Browser Source:"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="10sp" />
-
-                    <!-- Divider -->
-                    <View
-                        android:layout_width="match_parent"
-                        android:layout_height="1dp"
-                        android:layout_marginVertical="8dp"
-                        android:background="#1E2D4A" />
-
-                    <!-- OPTION 1: Direct Mobile Hotspot -->
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="vertical">
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="🔥 OPTION 1: DIRECT MOBILE HOTSPOT (Zero Router Congestion)"
-                            android:textColor="#FFB300"
-                            android:textSize="11sp"
-                            android:textStyle="bold" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="2dp"
-                            android:text="Turn ON phone Hotspot (5 GHz) ➔ Connect Laptop to phone Wi-Fi:"
-                            android:textColor="@color/text_secondary"
-                            android:textSize="10sp" />
-
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="4dp"
-                            android:gravity="center_vertical"
-                            android:orientation="horizontal">
-
-                            <TextView
-                                android:id="@+id/tvHotspotUrl"
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:fontFamily="monospace"
-                                android:text="http://192.168.43.1:8080/webrtc"
-                                android:textColor="#FFD54F"
-                                android:textSize="12sp"
-                                android:textStyle="bold" />
-
-                            <Button
-                                android:id="@+id/btnCopyHotspotUrl"
-                                android:layout_width="wrap_content"
-                                android:layout_height="32dp"
-                                android:background="@drawable/bg_segmented_pill"
-                                android:paddingHorizontal="12dp"
-                                android:text="📋 Copy Hotspot"
-                                android:textColor="#FFD54F"
-                                android:textSize="10sp"
-                                android:textStyle="bold" />
-                        </LinearLayout>
-                    </LinearLayout>
-
-                    <!-- Divider -->
-                    <View
-                        android:layout_width="match_parent"
-                        android:layout_height="1dp"
-                        android:layout_marginVertical="8dp"
-                        android:background="#1E2D4A" />
-
-                    <!-- OPTION 2: Local Wi-Fi Router -->
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="vertical">
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="📶 OPTION 2: LOCAL WI-FI ROUTER (Shared Network)"
-                            android:textColor="#80D8FF"
-                            android:textSize="11sp"
-                            android:textStyle="bold" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="2dp"
-                            android:text="Both Phone and Laptop connected to your home/office Wi-Fi router:"
-                            android:textColor="@color/text_secondary"
-                            android:textSize="10sp" />
-
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="4dp"
-                            android:gravity="center_vertical"
-                            android:orientation="horizontal">
-
-                            <TextView
-                                android:id="@+id/tvWifiUrl"
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:fontFamily="monospace"
-                                android:text="http://192.168.1.xxx:8080/webrtc"
-                                android:textColor="#80D8FF"
-                                android:textSize="12sp"
-                                android:textStyle="bold" />
-
-                            <Button
-                                android:id="@+id/btnCopyWifiUrl"
-                                android:layout_width="wrap_content"
-                                android:layout_height="32dp"
-                                android:background="@drawable/bg_segmented_pill"
-                                android:paddingHorizontal="12dp"
-                                android:text="📋 Copy Wi-Fi"
-                                android:textColor="#80D8FF"
-                                android:textSize="10sp"
-                                android:textStyle="bold" />
-                        </LinearLayout>
-                    </LinearLayout>
-
-                    <View
-                        android:layout_width="match_parent"
-                        android:layout_height="1dp"
-                        android:layout_marginVertical="10dp"
-                        android:background="#26FFFFFF" />
-
-                    <!-- OPTION 3: Direct SRT Stream to OBS Studio -->
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="vertical">
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="🛡️ OPTION 3: DIRECT SRT TO OBS STUDIO (ARQ Zero-Freeze)"
-                            android:textColor="#FFD54F"
-                            android:textSize="11sp"
-                            android:textStyle="bold" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="2dp"
-                            android:text="OBS ➔ Sources '+' ➔ Media Source ➔ Uncheck 'Local File' ➔ Input: srt://0.0.0.0:8890?mode=listener ➔ Format: mpegts"
-                            android:textColor="@color/text_secondary"
-                            android:textSize="10sp" />
-
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="6dp"
-                            android:gravity="center_vertical"
-                            android:orientation="horizontal">
-
-                            <EditText
-                                android:id="@+id/etSrtTargetIp"
-                                android:layout_width="0dp"
-                                android:layout_height="36dp"
-                                android:layout_weight="1"
-                                android:background="@drawable/bg_input_box"
-                                android:fontFamily="monospace"
-                                android:hint="Laptop IP (e.g. 192.168.1.50)"
-                                android:paddingHorizontal="10dp"
-                                android:textColor="#FFFFFF"
-                                android:textColorHint="#60FFFFFF"
-                                android:textSize="12sp" />
-
-                            <Button
-                                android:id="@+id/btnToggleSrt"
-                                android:layout_width="wrap_content"
-                                android:layout_height="36dp"
-                                android:layout_marginStart="8dp"
-                                android:background="@drawable/bg_segmented_pill"
-                                android:paddingHorizontal="14dp"
-                                android:text="🚀 PUSH SRT"
-                                android:textColor="#00E676"
-                                android:textSize="11sp"
-                                android:textStyle="bold" />
-                        </LinearLayout>
-
-                        <TextView
-                            android:id="@+id/tvSrtStatus"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="4dp"
-                            android:fontFamily="monospace"
-                            android:text="⚡ SRT Standby (Enter Laptop IP &amp; click Push)"
-                            android:textColor="#B0BEC5"
-                            android:textSize="10sp" />
-                    </LinearLayout>
-
-                    <!-- Hidden legacy fields to preserve view binding -->
-                    <TextView
-                        android:id="@+id/tvDirectWebUrl"
-                        android:layout_width="0dp"
-                        android:layout_height="0dp"
-                        android:visibility="gone" />
-                    <Button
-                        android:id="@+id/btnCopyWebUrl"
-                        android:layout_width="0dp"
-                        android:layout_height="0dp"
-                        android:visibility="gone" />
-                    <TextView
-                        android:id="@+id/tvDirectFlvUrl"
-                        android:layout_width="0dp"
-                        android:layout_height="0dp"
-                        android:visibility="gone" />
-                    <Button
-                        android:id="@+id/btnCopyFlvUrl"
-                        android:layout_width="0dp"
-                        android:layout_height="0dp"
-                        android:visibility="gone" />
-                </LinearLayout>
-
-                <!-- 60 FPS Camera Simulator & Optical Test Card -->
-                <LinearLayout
-                    android:id="@+id/layoutSimulationCard"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
-                    android:background="@drawable/bg_input_box"
-                    android:orientation="vertical"
-                    android:padding="12dp">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="🧪 ZERO-HARDWARE BENCHMARK &amp; MOTION TESTING"
-                        android:textColor="#00E676"
-                        android:textSize="11sp"
-                        android:textStyle="bold" />
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
-                        android:orientation="horizontal">
-
-                        <Button
-                            android:id="@+id/btnToggleSimulation"
-                            android:layout_width="0dp"
-                            android:layout_height="36dp"
-                            android:layout_weight="1"
-                            android:background="@drawable/bg_segmented_pill"
-                            android:paddingHorizontal="4dp"
-                            android:text="▶ 60 FPS Clock"
-                            android:textColor="#00E676"
-                            android:textSize="9.5sp"
-                            android:textStyle="bold" />
-
-                        <Button
-                            android:id="@+id/btnToggleVideoFile"
-                            android:layout_width="0dp"
-                            android:layout_height="36dp"
-                            android:layout_marginStart="6dp"
-                            android:layout_weight="1"
-                            android:background="@drawable/bg_segmented_pill"
-                            android:paddingHorizontal="4dp"
-                            android:text="🎬 60 FPS File"
-                            android:textColor="#FFD54F"
-                            android:textSize="9.5sp"
-                            android:textStyle="bold" />
-
-                        <Button
-                            android:id="@+id/btnTogglePhoneCameraTest"
-                            android:layout_width="0dp"
-                            android:layout_height="36dp"
-                            android:layout_marginStart="6dp"
-                            android:layout_weight="1"
-                            android:background="@drawable/bg_segmented_pill"
-                            android:paddingHorizontal="4dp"
-                            android:text="📱 Optical Cam"
-                            android:textColor="#80D8FF"
-                            android:textSize="9.5sp"
-                            android:textStyle="bold" />
-                    </LinearLayout>
 
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="6dp"
-                        android:lineSpacingExtra="1dp"
-                        android:text="• 60 FPS Clock: Tests millisecond latency &amp; 60fps fluidity with live bouncing graphics.\n• 60 FPS File: Pick ANY high-action 1080p60 MP4 to simulate a high-end 4K camera feed!\n• Optical Cam: Uses phone optical lens to test live human walk-bys &amp; motion."
+                        android:lineSpacingExtra="2dp"
+                        android:text="1. Turn on Mobile Hotspot (or connect Camera to shared Wi-Fi).\n2. Sony Menu → Network → Streaming → Network Streaming: ON\n3. RTMP Server URL: Set to one of the URLs below:"
                         android:textColor="@color/text_secondary"
                         android:textSize="10sp" />
-                </LinearLayout>
-
-                <!-- OBS Setup Hint & Guide -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
-                    android:background="@drawable/bg_input_box"
-                    android:orientation="vertical"
-                    android:padding="12dp">
 
                     <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="💡 OBS Studio Direct Connection (&lt;35ms Zero-Lag):"
-                        android:textColor="@color/gold_accent"
-                        android:textSize="11sp"
-                        android:textStyle="bold" />
-
-                    <TextView
+                        android:id="@+id/tvHotspotIngestDisplay"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="4dp"
-                        android:lineSpacingExtra="2dp"
-                        android:text="Method A (Browser Source): OBS ➔ Sources '+' ➔ Browser ➔ Paste /obs URL ➔ Width 1920, Height 1080, FPS 60.\nMethod B (Media Source): OBS ➔ Sources '+' ➔ Media Source ➔ Uncheck 'Local File' ➔ Input: paste /live.flv URL ➔ Input Format: flv ➔ Uncheck 'Use Network Buffering'."
-                        android:textColor="@color/text_secondary"
-                        android:textSize="11sp" />
-                </LinearLayout>
-
-                <!-- Start Bridge Button -->
-                <Button
-                    android:id="@+id/btnToggleBridgeStream"
-                    android:layout_width="match_parent"
-                    android:layout_height="50dp"
-                    android:layout_marginTop="14dp"
-                    android:background="@drawable/bg_cta_emerald"
-                    android:text="START OBS STREAM"
-                    android:textColor="#000000"
-                    android:textSize="14sp"
-                    android:textStyle="bold" />
-            </LinearLayout>
-
-
-            <!-- ─────────────────────────────────────────────────────────────────
-                 TAB 2 PANEL: MULTI-BROADCASTER (YT + FB + Insta + Graphics)
-                 ───────────────────────────────────────────────────────────────── -->
-            <LinearLayout
-                android:id="@+id/layoutStudioMode"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:visibility="gone">
-
-                <!-- 1. SIMULTANEOUS BROADCAST DESTINATIONS -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:background="@drawable/bg_glass_card"
-                    android:orientation="vertical"
-                    android:padding="14dp">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="📡 SIMULTANEOUS MULTI-BROADCAST"
-                        android:textColor="@color/emerald_primary"
-                        android:textSize="13sp"
+                        android:fontFamily="monospace"
+                        android:text="🔥 Hotspot: rtmp://192.168.43.1:1935/live"
+                        android:textColor="@color/emerald_accent"
+                        android:textSize="10sp"
                         android:textStyle="bold" />
 
                     <TextView
+                        android:id="@+id/tvWifiIngestDisplay"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="2dp"
-                        android:text="Stream directly to all selected platforms simultaneously from mobile:"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="11sp" />
-
-                    <!-- YouTube Live Row -->
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="10dp"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal">
-
-                        <CheckBox
-                            android:id="@+id/cbYoutube"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:buttonTint="@color/live_red"
-                            android:checked="true"
-                            android:text="YouTube"
-                            android:textColor="#FFFFFF"
-                            android:textSize="12sp"
-                            android:textStyle="bold" />
-
-                        <EditText
-                            android:id="@+id/etYoutubeKey"
-                            android:layout_width="0dp"
-                            android:layout_height="40dp"
-                            android:layout_marginStart="6dp"
-                            android:layout_weight="1"
-                            android:background="@drawable/bg_input_box"
-                            android:hint="YouTube Stream Key"
-                            android:inputType="textPassword"
-                            android:paddingHorizontal="12dp"
-                            android:textColor="#FFFFFF"
-                            android:textColorHint="@color/text_muted"
-                            android:textSize="11sp" />
-                    </LinearLayout>
-
-                    <!-- Facebook Live Row -->
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal">
-
-                        <CheckBox
-                            android:id="@+id/cbFacebook"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:buttonTint="#1877F2"
-                            android:checked="false"
-                            android:text="Facebook"
-                            android:textColor="#FFFFFF"
-                            android:textSize="12sp"
-                            android:textStyle="bold" />
-
-                        <EditText
-                            android:id="@+id/etFacebookKey"
-                            android:layout_width="0dp"
-                            android:layout_height="40dp"
-                            android:layout_marginStart="4dp"
-                            android:layout_weight="1"
-                            android:background="@drawable/bg_input_box"
-                            android:hint="Facebook Stream Key"
-                            android:inputType="textPassword"
-                            android:paddingHorizontal="12dp"
-                            android:textColor="#FFFFFF"
-                            android:textColorHint="@color/text_muted"
-                            android:textSize="11sp" />
-                    </LinearLayout>
-
-                    <!-- Instagram Live Row -->
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal">
-
-                        <CheckBox
-                            android:id="@+id/cbInstagram"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:buttonTint="#E1306C"
-                            android:checked="false"
-                            android:text="Instagram"
-                            android:textColor="#FFFFFF"
-                            android:textSize="12sp"
-                            android:textStyle="bold" />
-
-                        <EditText
-                            android:id="@+id/etInstagramKey"
-                            android:layout_width="0dp"
-                            android:layout_height="40dp"
-                            android:layout_marginStart="2dp"
-                            android:layout_weight="1"
-                            android:background="@drawable/bg_input_box"
-                            android:hint="Instagram Live Key"
-                            android:inputType="textPassword"
-                            android:paddingHorizontal="12dp"
-                            android:textColor="#FFFFFF"
-                            android:textColorHint="@color/text_muted"
-                            android:textSize="11sp" />
-                    </LinearLayout>
-
-                    <!-- Legacy compat hidden views -->
-                    <EditText
-                        android:id="@+id/etStreamKey"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:visibility="gone" />
-                    <com.google.android.material.chip.ChipGroup
-                        android:id="@+id/chipGroupPlatform"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:visibility="gone">
-                        <com.google.android.material.chip.Chip
-                            android:id="@+id/chipYoutube"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content" />
-                        <com.google.android.material.chip.Chip
-                            android:id="@+id/chipFacebook"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content" />
-                        <com.google.android.material.chip.Chip
-                            android:id="@+id/chipInstagram"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content" />
-                    </com.google.android.material.chip.ChipGroup>
+                        android:fontFamily="monospace"
+                        android:text="📶 Wi-Fi: rtmp://...:1935/live"
+                        android:textColor="@color/gold_accent"
+                        android:textSize="10sp" />
                 </LinearLayout>
 
-                <!-- 2. KATHA & VYAS JI NAMEPLATE CREATOR -->
+                <!-- Quick Navigation Action -->
+                <Button
+                    android:id="@+id/btnQuickGoBroadcast"
+                    android:layout_width="match_parent"
+                    android:layout_height="44dp"
+                    android:layout_marginTop="12dp"
+                    android:layout_marginBottom="8dp"
+                    android:background="@drawable/bg_cta_emerald"
+                    android:text="📡 OPEN MULTI-BROADCASTER →"
+                    android:textColor="#000000"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+        </ScrollView>
+
+        <!-- ─────────────────────────────────────────────────────────────────
+             SCREEN 2: 📡 MULTI-BROADCASTER (Dedicated Broadcast Screen)
+             ───────────────────────────────────────────────────────────────── -->
+        <ScrollView
+            android:id="@+id/layoutScreenBroadcast"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:fillViewport="true"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="12dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:letterSpacing="0.1"
+                    android:text="📡  SIMULTANEOUS MULTI-BROADCAST"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="10sp"
+                    android:textStyle="bold" />
+
+                <!-- YouTube Live Card -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:background="@drawable/bg_glass_card"
+                    android:orientation="vertical"
+                    android:padding="12dp">
+
+                    <CheckBox
+                        android:id="@+id/cbYoutube"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:buttonTint="#FF3D00"
+                        android:checked="true"
+                        android:text="  ▶️  YouTube Live (1080p FHD)"
+                        android:textColor="#FFFFFF"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+
+                    <EditText
+                        android:id="@+id/etYoutubeKey"
+                        android:layout_width="match_parent"
+                        android:layout_height="40dp"
+                        android:layout_marginTop="6dp"
+                        android:background="@drawable/bg_input_box"
+                        android:hint="Paste YouTube Stream Key (xxxx-xxxx-xxxx-xxxx)"
+                        android:inputType="textPassword"
+                        android:paddingHorizontal="12dp"
+                        android:textColor="#FFFFFF"
+                        android:textColorHint="@color/text_muted"
+                        android:textSize="11sp" />
+                </LinearLayout>
+
+                <!-- Facebook Live Card -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:background="@drawable/bg_glass_card"
+                    android:orientation="vertical"
+                    android:padding="12dp">
+
+                    <CheckBox
+                        android:id="@+id/cbFacebook"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:buttonTint="#1877F2"
+                        android:checked="false"
+                        android:text="  👥  Facebook Live (RTMPS Secure)"
+                        android:textColor="#FFFFFF"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+
+                    <EditText
+                        android:id="@+id/etFacebookKey"
+                        android:layout_width="match_parent"
+                        android:layout_height="40dp"
+                        android:layout_marginTop="6dp"
+                        android:background="@drawable/bg_input_box"
+                        android:hint="Paste Facebook Stream Key (FB-...)"
+                        android:inputType="textPassword"
+                        android:paddingHorizontal="12dp"
+                        android:textColor="#FFFFFF"
+                        android:textColorHint="@color/text_muted"
+                        android:textSize="11sp" />
+                </LinearLayout>
+
+                <!-- Instagram Live Card -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:background="@drawable/bg_glass_card"
+                    android:orientation="vertical"
+                    android:padding="12dp">
+
+                    <CheckBox
+                        android:id="@+id/cbInstagram"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:buttonTint="#E1306C"
+                        android:checked="false"
+                        android:text="  📸  Instagram Live"
+                        android:textColor="#FFFFFF"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+
+                    <EditText
+                        android:id="@+id/etInstagramKey"
+                        android:layout_width="match_parent"
+                        android:layout_height="40dp"
+                        android:layout_marginTop="6dp"
+                        android:background="@drawable/bg_input_box"
+                        android:hint="Paste Instagram Stream Key (YellowDuck/OBS)"
+                        android:inputType="textPassword"
+                        android:paddingHorizontal="12dp"
+                        android:textColor="#FFFFFF"
+                        android:textColorHint="@color/text_muted"
+                        android:textSize="11sp" />
+                </LinearLayout>
+
+                <!-- Lip-Sync Compensation Control -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="10dp"
                     android:background="@drawable/bg_glass_card"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:padding="10dp">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="🎙️ A/V Lip-Sync Alignment:"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="11sp" />
+
+                    <com.google.android.material.chip.Chip
+                        android:id="@+id/chipLipSync"
+                        android:layout_width="wrap_content"
+                        android:layout_height="32dp"
+                        android:text="🎙️ Lip-Sync: +100ms"
+                        android:textColor="@color/gold_accent"
+                        android:textSize="10sp"
+                        app:chipBackgroundColor="@color/card_dark"
+                        app:chipStrokeColor="@color/card_stroke"
+                        app:chipStrokeWidth="1dp" />
+                </LinearLayout>
+
+                <!-- Primary CTA: GO LIVE TO ALL -->
+                <Button
+                    android:id="@+id/btnToggleStudioLive"
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:layout_marginTop="16dp"
+                    android:layout_marginBottom="16dp"
+                    android:background="@drawable/bg_cta_red"
+                    android:elevation="6dp"
+                    android:text="🔴 GO LIVE TO ALL"
+                    android:textColor="#FFFFFF"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+        </ScrollView>
+
+        <!-- ─────────────────────────────────────────────────────────────────
+             SCREEN 3: 🎬 OVERLAYS & KATHA (Devotional Graphics Screen)
+             ───────────────────────────────────────────────────────────────── -->
+        <ScrollView
+            android:id="@+id/layoutScreenOverlays"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:fillViewport="true"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="12dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:letterSpacing="0.1"
+                    android:text="🎬  DEVOTIONAL BROADCAST GRAPHICS"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="10sp"
+                    android:textStyle="bold" />
+
+                <!-- Vyas Ji Nameplate Card -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:background="@drawable/bg_glass_card"
                     android:orientation="vertical"
-                    android:padding="14dp">
+                    android:padding="12dp">
 
                     <LinearLayout
                         android:layout_width="match_parent"
@@ -920,8 +818,8 @@
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:text="🏷️ व्यास पीठ नेमप्लेट (LOWER-THIRD)"
-                            android:textColor="@color/gold_accent"
+                            android:text="🏷️ व्यास पीठ नेमप्लेट (Lower-Third)"
+                            android:textColor="#FFFFFF"
                             android:textSize="12sp"
                             android:textStyle="bold" />
 
@@ -930,18 +828,18 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:checked="true"
-                            android:thumb="@drawable/ios_switch_thumb"
-                            app:track="@drawable/ios_switch_track" />
+                            app:thumbTint="@drawable/ios_switch_thumb"
+                            app:trackTint="@drawable/ios_switch_track" />
                     </LinearLayout>
 
                     <EditText
                         android:id="@+id/etKathaTitle"
                         android:layout_width="match_parent"
-                        android:layout_height="38dp"
-                        android:layout_marginTop="8dp"
+                        android:layout_height="40dp"
+                        android:layout_marginTop="6dp"
                         android:background="@drawable/bg_input_box"
-                        android:hint="कथा शीर्षक (उदा: श्रीमद् भागवत कथा ज्ञान यज्ञ)"
-                        android:paddingHorizontal="12dp"
+                        android:hint="कथा शीर्षक (उदा. श्रीमद् भागवत कथा ज्ञान यज्ञ)"
+                        android:paddingHorizontal="10dp"
                         android:textColor="#FFFFFF"
                         android:textColorHint="@color/text_muted"
                         android:textSize="11sp" />
@@ -955,11 +853,12 @@
                         <EditText
                             android:id="@+id/etVyasName"
                             android:layout_width="0dp"
-                            android:layout_height="38dp"
+                            android:layout_height="40dp"
+                            android:layout_marginEnd="4dp"
                             android:layout_weight="1"
                             android:background="@drawable/bg_input_box"
-                            android:hint="व्यास जी नाम (उदा: पूज्य व्यास जी महाराज)"
-                            android:paddingHorizontal="12dp"
+                            android:hint="व्यास जी का नाम"
+                            android:paddingHorizontal="10dp"
                             android:textColor="#FFFFFF"
                             android:textColorHint="@color/text_muted"
                             android:textSize="11sp" />
@@ -967,26 +866,26 @@
                         <EditText
                             android:id="@+id/etDayText"
                             android:layout_width="0dp"
-                            android:layout_height="38dp"
-                            android:layout_marginStart="6dp"
+                            android:layout_height="40dp"
+                            android:layout_marginStart="4dp"
                             android:layout_weight="1"
                             android:background="@drawable/bg_input_box"
-                            android:hint="दिवस/प्रसंग (उदा: दिवस 1)"
-                            android:paddingHorizontal="12dp"
+                            android:hint="दिवस / प्रसंग"
+                            android:paddingHorizontal="10dp"
                             android:textColor="#FFFFFF"
                             android:textColorHint="@color/text_muted"
                             android:textSize="11sp" />
                     </LinearLayout>
                 </LinearLayout>
 
-                <!-- 3. DYNAMIC ROTATING TICKER CREATOR -->
+                <!-- Rolling Hindi Ticker Card -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
+                    android:layout_marginTop="8dp"
                     android:background="@drawable/bg_glass_card"
                     android:orientation="vertical"
-                    android:padding="14dp">
+                    android:padding="12dp">
 
                     <LinearLayout
                         android:layout_width="match_parent"
@@ -998,8 +897,8 @@
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:text="📜 बॉटम रोलिंग टिकर (ROTATING TICKER)"
-                            android:textColor="@color/emerald_primary"
+                            android:text="📜 बॉटम रोलिंग टिकर (Ticker)"
+                            android:textColor="#FFFFFF"
                             android:textSize="12sp"
                             android:textStyle="bold" />
 
@@ -1008,27 +907,19 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:checked="true"
-                            android:thumb="@drawable/ios_switch_thumb"
-                            app:track="@drawable/ios_switch_track" />
+                            app:thumbTint="@drawable/ios_switch_thumb"
+                            app:trackTint="@drawable/ios_switch_track" />
                     </LinearLayout>
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="2dp"
-                        android:text="संदेश दर्ज करें (एक से अधिक संदेशों को नई लाइन या | से अलग करें — अपने आप रोटेट होंगे):"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="10sp" />
 
                     <EditText
                         android:id="@+id/etTickerText"
                         android:layout_width="match_parent"
-                        android:layout_height="60dp"
+                        android:layout_height="wrap_content"
                         android:layout_marginTop="6dp"
                         android:background="@drawable/bg_input_box"
                         android:gravity="top|start"
-                        android:hint="समय: 2 से 6 बजे | आरती एवं प्रसाद प्रतिदिन सायं 6 बजे | संपर्क: 9876543210..."
-                        android:inputType="textMultiLine"
+                        android:hint="स्क्रॉलिंग संदेश दर्ज करें (संदेशों को '|' से अलग करें)"
+                        android:minLines="2"
                         android:padding="10dp"
                         android:textColor="#FFFFFF"
                         android:textColorHint="@color/text_muted"
@@ -1038,22 +929,141 @@
                         android:id="@+id/btnUpdateOverlays"
                         android:layout_width="match_parent"
                         android:layout_height="38dp"
-                        android:layout_marginTop="6dp"
-                        android:background="@drawable/bg_cta_emerald"
-                        android:text="Apply Nameplate &amp; Ticker"
-                        android:textColor="#000000"
-                        android:textSize="11sp"
+                        android:layout_marginTop="8dp"
+                        android:background="@drawable/bg_segmented_pill"
+                        android:text="APPLY NAMEPLATE &amp; TICKER"
+                        android:textColor="@color/emerald_accent"
+                        android:textSize="10sp"
                         android:textStyle="bold" />
                 </LinearLayout>
 
-                <!-- 4. DYNAMIC UPI QR CODE (Auto-Timer + Dynamic VPA) -->
+                <!-- Jhanki PiP 2x2 Operator Desk -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
+                    android:layout_marginTop="8dp"
                     android:background="@drawable/bg_glass_card"
                     android:orientation="vertical"
-                    android:padding="14dp">
+                    android:padding="12dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="🖼️ प्रसंग झांकी / विज्ञापन (PiP)"
+                            android:textColor="#FFFFFF"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
+
+                        <androidx.appcompat.widget.SwitchCompat
+                            android:id="@+id/switchJhankiVisibility"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:checked="false"
+                            app:thumbTint="@drawable/ios_switch_thumb"
+                            app:trackTint="@drawable/ios_switch_track" />
+                    </LinearLayout>
+
+                    <!-- 2x2 Quick-Cue Buttons -->
+                    <GridLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:columnCount="2"
+                        android:rowCount="2">
+
+                        <Button
+                            android:id="@+id/btnJhankiMakhan"
+                            android:layout_width="0dp"
+                            android:layout_height="38dp"
+                            android:layout_columnWeight="1"
+                            android:layout_margin="3dp"
+                            android:background="@drawable/bg_segmented_pill"
+                            android:text="👶 माखन चोरी"
+                            android:textColor="#FFFFFF"
+                            android:textSize="10sp" />
+
+                        <Button
+                            android:id="@+id/btnJhankiDevaki"
+                            android:layout_width="0dp"
+                            android:layout_height="38dp"
+                            android:layout_columnWeight="1"
+                            android:layout_margin="3dp"
+                            android:background="@drawable/bg_segmented_pill"
+                            android:text="🌸 माता देवकी"
+                            android:textColor="#FFFFFF"
+                            android:textSize="10sp" />
+
+                        <Button
+                            android:id="@+id/btnPickCustomImage"
+                            android:layout_width="0dp"
+                            android:layout_height="38dp"
+                            android:layout_columnWeight="1"
+                            android:layout_margin="3dp"
+                            android:background="@drawable/bg_segmented_pill"
+                            android:text="📁 गैलरी फोटो"
+                            android:textColor="#FFFFFF"
+                            android:textSize="10sp" />
+
+                        <Button
+                            android:id="@+id/btnHideJhanki"
+                            android:layout_width="0dp"
+                            android:layout_height="38dp"
+                            android:layout_columnWeight="1"
+                            android:layout_margin="3dp"
+                            android:background="@drawable/bg_segmented_pill"
+                            android:text="✖️ झांकी बंद"
+                            android:textColor="#FF5252"
+                            android:textSize="10sp" />
+                    </GridLayout>
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <EditText
+                            android:id="@+id/etJhankiCaption"
+                            android:layout_width="0dp"
+                            android:layout_height="38dp"
+                            android:layout_weight="1"
+                            android:background="@drawable/bg_input_box"
+                            android:hint="झांकी शीर्षक (उदा. बाल कृष्ण दर्शन)"
+                            android:paddingHorizontal="10dp"
+                            android:textColor="#FFFFFF"
+                            android:textColorHint="@color/text_muted"
+                            android:textSize="11sp" />
+
+                        <Button
+                            android:id="@+id/btnUpdateJhankiCaption"
+                            android:layout_width="wrap_content"
+                            android:layout_height="38dp"
+                            android:layout_marginStart="6dp"
+                            android:background="@drawable/bg_segmented_pill"
+                            android:paddingHorizontal="12dp"
+                            android:text="सेट"
+                            android:textColor="@color/emerald_accent"
+                            android:textSize="10sp" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <!-- UPI Donation QR Code Card -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:layout_marginBottom="16dp"
+                    android:background="@drawable/bg_glass_card"
+                    android:orientation="vertical"
+                    android:padding="12dp">
 
                     <LinearLayout
                         android:layout_width="match_parent"
@@ -1066,28 +1076,19 @@
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
                             android:text="📱 सहयोग / दान हेतु UPI QR कोड"
-                            android:textColor="@color/gold_accent"
+                            android:textColor="#FFFFFF"
                             android:textSize="12sp"
                             android:textStyle="bold" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginEnd="6dp"
-                            android:text="Show QR"
-                            android:textColor="#FFFFFF"
-                            android:textSize="11sp" />
 
                         <androidx.appcompat.widget.SwitchCompat
                             android:id="@+id/switchQrVisibility"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:checked="false"
-                            android:thumb="@drawable/ios_switch_thumb"
-                            app:track="@drawable/ios_switch_track" />
+                            app:thumbTint="@drawable/ios_switch_thumb"
+                            app:trackTint="@drawable/ios_switch_track" />
                     </LinearLayout>
 
-                    <!-- Auto-Timer Switch -->
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -1099,18 +1100,30 @@
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:text="⏰ ऑटो-टाइमर (2 मिनट दिखेगा, 8 मिनट छुपेगा):"
+                            android:text="ऑटो-टाइमिंग (2 मि. ऑन / 8 मि. ऑफ)"
                             android:textColor="@color/text_secondary"
-                            android:textSize="11sp" />
+                            android:textSize="10sp" />
 
                         <androidx.appcompat.widget.SwitchCompat
                             android:id="@+id/switchQrAutoTimer"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:checked="false"
-                            android:thumb="@drawable/ios_switch_thumb"
-                            app:track="@drawable/ios_switch_track" />
+                            android:checked="true"
+                            app:thumbTint="@drawable/ios_switch_thumb"
+                            app:trackTint="@drawable/ios_switch_track" />
                     </LinearLayout>
+
+                    <EditText
+                        android:id="@+id/etUpiId"
+                        android:layout_width="match_parent"
+                        android:layout_height="40dp"
+                        android:layout_marginTop="6dp"
+                        android:background="@drawable/bg_input_box"
+                        android:hint="UPI ID दर्ज करें (उदा. katha@upi)"
+                        android:paddingHorizontal="10dp"
+                        android:textColor="#FFFFFF"
+                        android:textColorHint="@color/text_muted"
+                        android:textSize="11sp" />
 
                     <LinearLayout
                         android:layout_width="match_parent"
@@ -1118,51 +1131,269 @@
                         android:layout_marginTop="8dp"
                         android:orientation="horizontal">
 
+                        <Button
+                            android:id="@+id/btnGenerateQr"
+                            android:layout_width="0dp"
+                            android:layout_height="38dp"
+                            android:layout_marginEnd="4dp"
+                            android:layout_weight="1"
+                            android:background="@drawable/bg_segmented_pill"
+                            android:text="GENERATE QR"
+                            android:textColor="@color/gold_accent"
+                            android:textSize="10sp"
+                            android:textStyle="bold" />
+
+                        <Button
+                            android:id="@+id/btnPickQrImage"
+                            android:layout_width="0dp"
+                            android:layout_height="38dp"
+                            android:layout_marginStart="4dp"
+                            android:layout_weight="1"
+                            android:background="@drawable/bg_segmented_pill"
+                            android:text="PICK FROM GALLERY"
+                            android:textColor="#FFFFFF"
+                            android:textSize="10sp" />
+                    </LinearLayout>
+                </LinearLayout>
+            </LinearLayout>
+        </ScrollView>
+
+        <!-- ─────────────────────────────────────────────────────────────────
+             SCREEN 4: ⚙️ SETTINGS & OBS BRIDGE
+             ───────────────────────────────────────────────────────────────── -->
+        <ScrollView
+            android:id="@+id/layoutScreenSettings"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:fillViewport="true"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="12dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:letterSpacing="0.1"
+                    android:text="⚙️  OBS BRIDGE &amp; SYSTEM SETTINGS"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="10sp"
+                    android:textStyle="bold" />
+
+                <!-- WebRTC / OBS Stream URLs Card -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:background="@drawable/bg_glass_card"
+                    android:orientation="vertical"
+                    android:padding="12dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="🌐 WEBRTC OBS BRIDGE (&lt;50ms ZERO-LAG)"
+                        android:textColor="#FFFFFF"
+                        android:textSize="11sp"
+                        android:textStyle="bold" />
+
+                    <!-- Hotspot URL -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <TextView
+                            android:id="@+id/tvHotspotUrl"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:fontFamily="monospace"
+                            android:text="http://192.168.43.1:8080/webrtc"
+                            android:textColor="@color/emerald_accent"
+                            android:textSize="10sp" />
+
+                        <Button
+                            android:id="@+id/btnCopyHotspotUrl"
+                            android:layout_width="wrap_content"
+                            android:layout_height="32dp"
+                            android:background="@drawable/bg_segmented_pill"
+                            android:paddingHorizontal="10dp"
+                            android:text="Copy"
+                            android:textColor="#FFFFFF"
+                            android:textSize="9sp" />
+                    </LinearLayout>
+
+                    <!-- Wi-Fi URL -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <TextView
+                            android:id="@+id/tvWifiUrl"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:fontFamily="monospace"
+                            android:text="http://192.168.x.x:8080/webrtc"
+                            android:textColor="@color/gold_accent"
+                            android:textSize="10sp" />
+
+                        <Button
+                            android:id="@+id/btnCopyWifiUrl"
+                            android:layout_width="wrap_content"
+                            android:layout_height="32dp"
+                            android:background="@drawable/bg_segmented_pill"
+                            android:paddingHorizontal="10dp"
+                            android:text="Copy"
+                            android:textColor="#FFFFFF"
+                            android:textSize="9sp" />
+                    </LinearLayout>
+
+                    <!-- SRT Direct to OBS -->
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:layout_marginVertical="8dp"
+                        android:background="#22FFFFFF" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="⚡ DIRECT SRT TO OBS STUDIO"
+                        android:textColor="@color/gold_accent"
+                        android:textSize="10sp"
+                        android:textStyle="bold" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
                         <EditText
-                            android:id="@+id/etUpiId"
+                            android:id="@+id/etSrtTargetIp"
                             android:layout_width="0dp"
                             android:layout_height="38dp"
                             android:layout_weight="1"
                             android:background="@drawable/bg_input_box"
-                            android:hint="UPI ID (उदा: katha@sbi या 9876543210@paytm)"
-                            android:paddingHorizontal="12dp"
+                            android:hint="Laptop IP (192.168.x.x)"
+                            android:inputType="text"
+                            android:paddingHorizontal="10dp"
                             android:textColor="#FFFFFF"
                             android:textColorHint="@color/text_muted"
                             android:textSize="11sp" />
 
                         <Button
-                            android:id="@+id/btnGenerateQr"
+                            android:id="@+id/btnToggleSrt"
                             android:layout_width="wrap_content"
                             android:layout_height="38dp"
                             android:layout_marginStart="6dp"
-                            android:background="@drawable/bg_cta_emerald"
+                            android:background="@drawable/bg_segmented_pill"
                             android:paddingHorizontal="12dp"
-                            android:text="Generate QR"
-                            android:textColor="#000000"
-                            android:textSize="11sp"
+                            android:text="PUSH SRT"
+                            android:textColor="@color/gold_accent"
+                            android:textSize="10sp"
                             android:textStyle="bold" />
                     </LinearLayout>
 
+                    <TextView
+                        android:id="@+id/tvSrtStatus"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="SRT: Disconnected"
+                        android:textColor="@color/text_muted"
+                        android:textSize="9sp" />
+
+                    <!-- Start OBS Stream CTA -->
                     <Button
-                        android:id="@+id/btnPickQrImage"
+                        android:id="@+id/btnToggleBridgeStream"
                         android:layout_width="match_parent"
-                        android:layout_height="36dp"
-                        android:layout_marginTop="6dp"
-                        android:background="@drawable/bg_segmented_pill"
-                        android:text="📁 या गैलरी से बना बनाया QR कोड फोटो चुनें"
-                        android:textColor="@color/emerald_accent"
-                        android:textSize="11sp"
+                        android:layout_height="44dp"
+                        android:layout_marginTop="10dp"
+                        android:background="@drawable/bg_cta_emerald"
+                        android:text="START OBS STREAM"
+                        android:textColor="#000000"
+                        android:textSize="12sp"
                         android:textStyle="bold" />
                 </LinearLayout>
 
-                <!-- 5. MICRO-GRAPHICS / JHANKI OPERATOR DESK (Human Intervention) -->
+                <!-- Zero-Hardware Simulation Card -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
+                    android:layout_marginTop="8dp"
                     android:background="@drawable/bg_glass_card"
                     android:orientation="vertical"
-                    android:padding="14dp">
+                    android:padding="12dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="🧪 HARDWARE SIMULATION &amp; BENCHMARK"
+                        android:textColor="#FFFFFF"
+                        android:textSize="11sp"
+                        android:textStyle="bold" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:orientation="horizontal">
+
+                        <Button
+                            android:id="@+id/btnToggleSimulation"
+                            android:layout_width="0dp"
+                            android:layout_height="38dp"
+                            android:layout_marginEnd="3dp"
+                            android:layout_weight="1"
+                            android:background="@drawable/bg_segmented_pill"
+                            android:text="▶ 60 FPS Clock"
+                            android:textColor="#FFFFFF"
+                            android:textSize="9sp" />
+
+                        <Button
+                            android:id="@+id/btnToggleVideoFile"
+                            android:layout_width="0dp"
+                            android:layout_height="38dp"
+                            android:layout_marginHorizontal="3dp"
+                            android:layout_weight="1"
+                            android:background="@drawable/bg_segmented_pill"
+                            android:text="🎬 Video File"
+                            android:textColor="#FFFFFF"
+                            android:textSize="9sp" />
+
+                        <Button
+                            android:id="@+id/btnTogglePhoneCameraTest"
+                            android:layout_width="0dp"
+                            android:layout_height="38dp"
+                            android:layout_marginStart="3dp"
+                            android:layout_weight="1"
+                            android:background="@drawable/bg_segmented_pill"
+                            android:text="📱 Phone Cam"
+                            android:textColor="#FFFFFF"
+                            android:textSize="9sp" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <!-- Engine Switches (Bonding & Overlays) -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:background="@drawable/bg_glass_card"
+                    android:orientation="vertical"
+                    android:padding="12dp">
 
                     <LinearLayout
                         android:layout_width="match_parent"
@@ -1174,171 +1405,198 @@
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:text="🖼️ प्रसंग झांकी / विज्ञापन (1-टैप ऑपरेटर डेस्क)"
-                            android:textColor="@color/emerald_primary"
-                            android:textSize="12sp"
-                            android:textStyle="bold" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginEnd="6dp"
-                            android:text="Show"
+                            android:text="⚡ 5G + Wi-Fi Network Bonding"
                             android:textColor="#FFFFFF"
                             android:textSize="11sp" />
 
                         <androidx.appcompat.widget.SwitchCompat
-                            android:id="@+id/switchJhankiVisibility"
+                            android:id="@+id/switchBonding"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:checked="false"
-                            android:thumb="@drawable/ios_switch_thumb"
-                            app:track="@drawable/ios_switch_track" />
+                            android:checked="true"
+                            app:thumbTint="@drawable/ios_switch_thumb"
+                            app:trackTint="@drawable/ios_switch_track" />
                     </LinearLayout>
 
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="2dp"
-                        android:text="महाराज जी के प्रसंग अनुसार 1-टैप में विजुअल स्क्रीन पर लाएं:"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="10sp" />
-
-                    <!-- Quick Cue Preset Buttons -->
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
+                        android:layout_marginTop="6dp"
+                        android:gravity="center_vertical"
                         android:orientation="horizontal">
 
-                        <Button
-                            android:id="@+id/btnJhankiMakhan"
+                        <TextView
                             android:layout_width="0dp"
-                            android:layout_height="38dp"
+                            android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:background="@drawable/bg_segmented_pill"
-                            android:text="👶 माखन चोरी"
+                            android:text="🎬 Master Graphics Overlay Engine"
                             android:textColor="#FFFFFF"
-                            android:textSize="10sp"
-                            android:textStyle="bold" />
-
-                        <Button
-                            android:id="@+id/btnJhankiDevaki"
-                            android:layout_width="0dp"
-                            android:layout_height="38dp"
-                            android:layout_marginStart="4dp"
-                            android:layout_weight="1"
-                            android:background="@drawable/bg_segmented_pill"
-                            android:text="🌸 माता देवकी"
-                            android:textColor="#FFFFFF"
-                            android:textSize="10sp"
-                            android:textStyle="bold" />
-
-                        <Button
-                            android:id="@+id/btnPickCustomImage"
-                            android:layout_width="0dp"
-                            android:layout_height="38dp"
-                            android:layout_marginStart="4dp"
-                            android:layout_weight="1.2"
-                            android:background="@drawable/bg_segmented_pill"
-                            android:text="📁 गैलरी फोटो"
-                            android:textColor="@color/emerald_accent"
-                            android:textSize="10sp"
-                            android:textStyle="bold" />
-
-                        <Button
-                            android:id="@+id/btnHideJhanki"
-                            android:layout_width="wrap_content"
-                            android:layout_height="38dp"
-                            android:layout_marginStart="4dp"
-                            android:background="@drawable/bg_segmented_pill"
-                            android:paddingHorizontal="10dp"
-                            android:text="✖️ बंद"
-                            android:textColor="@color/live_red"
-                            android:textSize="11sp"
-                            android:textStyle="bold" />
-                    </LinearLayout>
-
-                    <!-- Custom Caption Input -->
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
-                        android:orientation="horizontal">
-
-                        <EditText
-                            android:id="@+id/etJhankiCaption"
-                            android:layout_width="0dp"
-                            android:layout_height="38dp"
-                            android:layout_weight="1"
-                            android:background="@drawable/bg_input_box"
-                            android:hint="कस्टम शीर्षक (उदा: मुख्य यजमान या लीला नाम)"
-                            android:paddingHorizontal="12dp"
-                            android:textColor="#FFFFFF"
-                            android:textColorHint="@color/text_muted"
                             android:textSize="11sp" />
 
-                        <Button
-                            android:id="@+id/btnUpdateJhankiCaption"
+                        <androidx.appcompat.widget.SwitchCompat
+                            android:id="@+id/switchOverlays"
                             android:layout_width="wrap_content"
-                            android:layout_height="38dp"
-                            android:layout_marginStart="6dp"
-                            android:background="@drawable/bg_cta_emerald"
-                            android:paddingHorizontal="12dp"
-                            android:text="Set Caption"
-                            android:textColor="#000000"
-                            android:textSize="11sp"
-                            android:textStyle="bold" />
+                            android:layout_height="wrap_content"
+                            android:checked="true"
+                            app:thumbTint="@drawable/ios_switch_thumb"
+                            app:trackTint="@drawable/ios_switch_track" />
                     </LinearLayout>
                 </LinearLayout>
 
-                <!-- 6. A/V LIP-SYNC TUNING & GO LIVE -->
+                <!-- Hidden Legacy Compatibility Views -->
                 <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
-                    android:layout_marginBottom="16dp"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal">
-
-                    <com.google.android.material.chip.Chip
-                        android:id="@+id/chipLipSync"
-                        style="@style/Widget.Material3.Chip.Assist"
-                        android:layout_width="wrap_content"
-                        android:layout_height="44dp"
-                        android:text="🎙️ Lip-Sync: +100ms"
-                        android:textColor="@color/gold_accent" />
-
-                    <Button
-                        android:id="@+id/btnToggleStudioLive"
-                        android:layout_width="0dp"
-                        android:layout_height="52dp"
-                        android:layout_marginStart="10dp"
-                        android:layout_weight="1"
-                        android:background="@drawable/bg_cta_red"
-                        android:text="🔴 GO LIVE TO ALL"
-                        android:textColor="#FFFFFF"
-                        android:textSize="14sp"
-                        android:textStyle="bold" />
+                    android:id="@+id/layoutBridgeMode"
+                    android:layout_width="0dp"
+                    android:layout_height="0dp"
+                    android:visibility="gone">
+                    <TextView android:id="@+id/tvDirectWebUrl" android:layout_width="wrap_content" android:layout_height="wrap_content" />
+                    <Button android:id="@+id/btnCopyWebUrl" android:layout_width="wrap_content" android:layout_height="wrap_content" />
+                    <TextView android:id="@+id/tvDirectFlvUrl" android:layout_width="wrap_content" android:layout_height="wrap_content" />
+                    <Button android:id="@+id/btnCopyFlvUrl" android:layout_width="wrap_content" android:layout_height="wrap_content" />
                 </LinearLayout>
 
-                <!-- Hidden bonding switches for compat -->
-                <androidx.appcompat.widget.SwitchCompat
-                    android:id="@+id/switchBonding"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:checked="true"
-                    android:visibility="gone" />
-                <androidx.appcompat.widget.SwitchCompat
-                    android:id="@+id/switchOverlays"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:checked="true"
+                <LinearLayout
+                    android:id="@+id/layoutStudioMode"
+                    android:layout_width="0dp"
+                    android:layout_height="0dp"
                     android:visibility="gone" />
 
+                <RadioGroup
+                    android:id="@+id/rgModeSelector"
+                    android:layout_width="0dp"
+                    android:layout_height="0dp"
+                    android:visibility="gone">
+                    <RadioButton android:id="@+id/rbBridgeMode" android:layout_width="wrap_content" android:layout_height="wrap_content" />
+                    <RadioButton android:id="@+id/rbStudioMode" android:layout_width="wrap_content" android:layout_height="wrap_content" />
+                </RadioGroup>
             </LinearLayout>
+        </ScrollView>
+    </FrameLayout>
 
+    <!-- ═══════════════════════════════════════════════════════════════════════
+         4. BOTTOM NAVIGATION BAR (Clean, Modern 4-Tab Landing Bar)
+         ═══════════════════════════════════════════════════════════════════════ -->
+    <LinearLayout
+        android:id="@+id/layoutBottomNav"
+        android:layout_width="0dp"
+        android:layout_height="58dp"
+        android:background="#0A1813"
+        android:elevation="8dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingHorizontal="4dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent">
+
+        <!-- Tab 1: Live -->
+        <LinearLayout
+            android:id="@+id/btnNavLive"
+            android:layout_width="0dp"
+            android:layout_height="42dp"
+            android:layout_weight="1"
+            android:background="@drawable/bg_tab_active"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="🎥"
+                android:textSize="15sp" />
+
+            <TextView
+                android:id="@+id/tvNavLiveTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Live"
+                android:textColor="#FFFFFF"
+                android:textSize="10sp"
+                android:textStyle="bold" />
         </LinearLayout>
-    </androidx.core.widget.NestedScrollView>
+
+        <!-- Tab 2: Broadcast -->
+        <LinearLayout
+            android:id="@+id/btnNavBroadcast"
+            android:layout_width="0dp"
+            android:layout_height="42dp"
+            android:layout_weight="1"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="📡"
+                android:textSize="15sp" />
+
+            <TextView
+                android:id="@+id/tvNavBroadcastTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Broadcast"
+                android:textColor="@color/text_muted"
+                android:textSize="10sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <!-- Tab 3: Overlays -->
+        <LinearLayout
+            android:id="@+id/btnNavOverlays"
+            android:layout_width="0dp"
+            android:layout_height="42dp"
+            android:layout_weight="1"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="🎬"
+                android:textSize="15sp" />
+
+            <TextView
+                android:id="@+id/tvNavOverlaysTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Overlays"
+                android:textColor="@color/text_muted"
+                android:textSize="10sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <!-- Tab 4: Settings -->
+        <LinearLayout
+            android:id="@+id/btnNavSettings"
+            android:layout_width="0dp"
+            android:layout_height="42dp"
+            android:layout_weight="1"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="⚙️"
+                android:textSize="15sp" />
+
+            <TextView
+                android:id="@+id/tvNavSettingsTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Settings"
+                android:textColor="@color/text_muted"
+                android:textSize="10sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+    </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

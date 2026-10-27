@@ -57,7 +57,7 @@ import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
 enum class ProductionMode { BRIDGE_TO_OBS, IN_APP_STUDIO }
-enum class CameraBackend { NONE, CAMERAX_EXTERNAL, NATIVE_UVC }
+enum class CameraBackend { NONE, CAMERAX_EXTERNAL, NATIVE_UVC, NETWORK_RTMP }
 
 class MainActivity : AppCompatActivity() {
 
@@ -79,6 +79,10 @@ class MainActivity : AppCompatActivity() {
     private var webServer: WebMonitorServer? = null
     private var rtmpStreamManager: RtmpStreamManager? = null
     private lateinit var bondingEngine: NetworkBondingEngine
+
+    // ── Wireless RTMP Ingest Server (Sony A7 IV Hotspot & Shared Wi-Fi) ────────
+    private var rtmpIngestServer: com.cambridge.streamer.stream.RtmpIngestServer? = null
+    private var h264Decoder: android.media.MediaCodec? = null
 
     // ── WebRTC Zero-Freeze UDP Bridge ──────────────────────────────────────────
     private var webRtcEngine: com.cambridge.streamer.stream.WebRtcBridgeEngine? = null
@@ -304,6 +308,11 @@ class MainActivity : AppCompatActivity() {
         // ── Video player cleanup ──────────────────────────────────────────────────
         try { videoPlayer?.release() } catch (_: Exception) {}
         videoPlayer = null
+        // ── RTMP Ingest Server cleanup ────────────────────────────────────────────
+        rtmpIngestServer?.stop()
+        rtmpIngestServer = null
+        try { h264Decoder?.stop(); h264Decoder?.release() } catch (_: Exception) {}
+        h264Decoder = null
         // ──────────────────────────────────────────────────────────────────────────
         nativeUvcEngine?.onDirectJpegFrame = null
         nativeUvcEngine?.stop()
@@ -321,6 +330,11 @@ class MainActivity : AppCompatActivity() {
             override fun surfaceCreated(holder: SurfaceHolder) {
                 Log.d(TAG, "uvcViewFinder surface created: ${holder.surface}")
                 nativeUvcEngine?.addSurface(holder.surface)
+                val s = rtmpIngestServer?.sps
+                val p = rtmpIngestServer?.pps
+                if (s != null && p != null) {
+                    initH264Decoder(holder.surface, s, p)
+                }
             }
 
             override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
@@ -331,6 +345,8 @@ class MainActivity : AppCompatActivity() {
             override fun surfaceDestroyed(holder: SurfaceHolder) {
                 Log.d(TAG, "uvcViewFinder surface destroyed")
                 nativeUvcEngine?.removeSurface(holder.surface)
+                try { h264Decoder?.stop(); h264Decoder?.release() } catch (_: Exception) {}
+                h264Decoder = null
             }
         })
     }
@@ -459,7 +475,121 @@ class MainActivity : AppCompatActivity() {
         binding.tvHotspotUrl.text = "http://$hotspotIp:8080/webrtc"
         binding.tvWifiUrl.text = "http://$wifiIp:8080/webrtc"
         binding.tvDirectWebUrl.text = "http://${endpoints.bestIp}:8080/webrtc"
+
+        // Update Sony Wireless Ingest URLs
+        binding.tvWifiIngestUrl.text = "rtmp://${endpoints.bestIp}:1935/live"
+        binding.tvHotspotIngestDisplay.text = "🔥 Hotspot: rtmp://$hotspotIp:1935/live"
+        binding.tvWifiIngestDisplay.text = "📶 Wi-Fi: rtmp://$wifiIp:1935/live"
+
         ensureWebServerStarted()
+        initRtmpIngestServer()
+    }
+
+    private fun initRtmpIngestServer() {
+        if (rtmpIngestServer != null) return
+        try {
+            rtmpIngestServer = com.cambridge.streamer.stream.RtmpIngestServer(
+                port = 1935,
+                onClientConnected = { clientIp ->
+                    runOnUiThread {
+                        activeBackend = CameraBackend.NETWORK_RTMP
+                        binding.tvWifiIngestStatus.text = "🟢 Connected: $clientIp"
+                        binding.tvWifiIngestStatus.setTextColor(ContextCompat.getColor(this@MainActivity, R.color.emerald_accent))
+                        binding.tvUsbStatus.text = "📡 SONY: $clientIp"
+                        binding.tvUsbStatus.setTextColor(ContextCompat.getColor(this@MainActivity, R.color.emerald_accent))
+                        binding.layoutHdmiStandby.visibility = View.GONE
+                        binding.uvcViewFinder.visibility = View.VISIBLE
+                        binding.viewFinder.visibility = View.GONE
+                        showToast("📷 Sony A7 IV Connected: $clientIp")
+                    }
+                },
+                onSpsPpsReady = { sps, pps ->
+                    runOnUiThread {
+                        binding.tvVideoTelemetry.text = "🟢 SONY RTMP: 1080p @ 60.0 FPS"
+                        binding.tvVideoTelemetry.setTextColor(ContextCompat.getColor(this@MainActivity, R.color.emerald_accent))
+                        initH264Decoder(binding.uvcViewFinder.holder.surface, sps, pps)
+                    }
+                    rtmpStreamManager?.updateSpsPps(sps, pps)
+                },
+                onVideoNalu = { nalu, isKey, pts ->
+                    feedFrameToDecoder(nalu, pts)
+                    bondingEngine.dispatchPacket(nalu)
+                    rtmpStreamManager?.pushVideoFrame(nalu, isKey, pts)
+                    rtspServer?.broadcastH264Packet(nalu, isKey, pts)
+                },
+                onAudioConfig = { asc ->
+                    rtspAudioConfig = asc
+                },
+                onAudioFrame = { aac, pts ->
+                    rtspServer?.broadcastAudioPacket(aac, pts)
+                },
+                onClientDisconnected = { reason ->
+                    runOnUiThread {
+                        if (activeBackend == CameraBackend.NETWORK_RTMP) {
+                            activeBackend = CameraBackend.NONE
+                            binding.tvWifiIngestStatus.text = "🟢 Active (Hotspot + Wi-Fi)"
+                            binding.tvWifiIngestStatus.setTextColor(ContextCompat.getColor(this@MainActivity, R.color.emerald_accent))
+                            binding.tvUsbStatus.text = "⚡ Input: Ready"
+                            binding.tvUsbStatus.setTextColor(Color.parseColor("#FF9800"))
+                            if (nativeUvcEngine?.isCameraOpened() != true) {
+                                binding.layoutHdmiStandby.visibility = View.VISIBLE
+                            }
+                            showToast("Sony Camera Disconnected: $reason")
+                        }
+                    }
+                }
+            )
+            rtmpIngestServer?.start()
+            Log.d(TAG, "RTMP Ingest Server initialized on 0.0.0.0:1935")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to start RTMP Ingest Server: ${e.message}", e)
+        }
+    }
+
+    private fun initH264Decoder(surface: Surface, sps: ByteArray, pps: ByteArray) {
+        if (!surface.isValid) return
+        try {
+            h264Decoder?.stop()
+            h264Decoder?.release()
+        } catch (_: Exception) {}
+
+        try {
+            val format = android.media.MediaFormat.createVideoFormat(
+                android.media.MediaFormat.MIMETYPE_VIDEO_AVC,
+                1920, 1080
+            )
+            format.setByteBuffer("csd-0", java.nio.ByteBuffer.wrap(sps))
+            format.setByteBuffer("csd-1", java.nio.ByteBuffer.wrap(pps))
+            format.setInteger(android.media.MediaFormat.KEY_LOW_LATENCY, 1)
+
+            val decoder = android.media.MediaCodec.createDecoderByType(android.media.MediaFormat.MIMETYPE_VIDEO_AVC)
+            decoder.configure(format, surface, null, 0)
+            decoder.start()
+            h264Decoder = decoder
+            Log.d(TAG, "Hardware H.264 preview decoder started")
+        } catch (e: Exception) {
+            Log.e(TAG, "H.264 preview decoder configuration error: ${e.message}")
+        }
+    }
+
+    private fun feedFrameToDecoder(nalu: ByteArray, ptsMs: Long) {
+        val decoder = h264Decoder ?: return
+        try {
+            val inIdx = decoder.dequeueInputBuffer(5000L)
+            if (inIdx >= 0) {
+                val buf = decoder.getInputBuffer(inIdx)
+                buf?.clear()
+                buf?.put(nalu)
+                decoder.queueInputBuffer(inIdx, 0, nalu.size, ptsMs * 1000L, 0)
+            }
+
+            val bufferInfo = android.media.MediaCodec.BufferInfo()
+            var outIdx = decoder.dequeueOutputBuffer(bufferInfo, 0L)
+            while (outIdx >= 0) {
+                decoder.releaseOutputBuffer(outIdx, true)
+                outIdx = decoder.dequeueOutputBuffer(bufferInfo, 0L)
+            }
+        } catch (_: Exception) {}
     }
 
     private fun ensureWebServerStarted() {
@@ -870,6 +1000,86 @@ class MainActivity : AppCompatActivity() {
 
                 startBroadcastingStudio(destinations)
             }
+        }
+
+        // ── Bottom Navigation Tabs ──────────────────────────────────────────
+        binding.btnNavLive.setOnClickListener { switchLandingScreen(0) }
+        binding.btnNavBroadcast.setOnClickListener { switchLandingScreen(1) }
+        binding.btnNavOverlays.setOnClickListener { switchLandingScreen(2) }
+        binding.btnNavSettings.setOnClickListener { switchLandingScreen(3) }
+        binding.btnQuickGoBroadcast.setOnClickListener { switchLandingScreen(1) }
+
+        // ── 2x2 Source Grid Cards ───────────────────────────────────────────
+        binding.srcCardWifi.setOnClickListener {
+            val endpoints = NetworkUtils.getNetworkEndpoints()
+            val msg = "📡 Sony RTMP Ingest Server\n\n" +
+                    "🔥 Mobile Hotspot:\nrtmp://${endpoints.hotspotIp}:1935/live\n\n" +
+                    "📶 Shared Wi-Fi:\nrtmp://${endpoints.wifiRouterIp ?: "192.168.1.xxx"}:1935/live\n\n" +
+                    "Status: ${if (rtmpIngestServer?.isClientConnected == true) "Connected (${rtmpIngestServer?.clientIp})" else "Listening on 0.0.0.0:1935"}"
+            AlertDialog.Builder(this)
+                .setTitle("📡 Sony Wi-Fi Streaming")
+                .setMessage(msg)
+                .setPositiveButton("Copy Hotspot URL") { _, _ ->
+                    val cb = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                    cb.setPrimaryClip(ClipData.newPlainText("Sony RTMP URL", "rtmp://${endpoints.hotspotIp}:1935/live"))
+                    showToast("Copied Hotspot RTMP Ingest URL!")
+                }
+                .setNeutralButton("Copy Wi-Fi URL") { _, _ ->
+                    val cb = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                    cb.setPrimaryClip(ClipData.newPlainText("Sony RTMP URL", "rtmp://${endpoints.wifiRouterIp ?: "192.168.1.xxx"}:1935/live"))
+                    showToast("Copied Wi-Fi RTMP Ingest URL!")
+                }
+                .setNegativeButton("OK", null)
+                .show()
+        }
+
+        binding.srcCardUsb.setOnClickListener {
+            nativeUvcEngine?.checkConnectedDevices()
+            val status = if (nativeUvcEngine?.isCameraOpened() == true) "✅ USB Camera Active" else "🔌 No USB Capture Card Detected. Please plug in HDMI card."
+            showToast(status)
+        }
+
+        binding.srcCardPhone.setOnClickListener {
+            togglePhoneCameraTest()
+        }
+
+        binding.srcCardTest.setOnClickListener {
+            toggleCameraSimulation()
+        }
+
+        // Initialize first screen
+        switchLandingScreen(0)
+    }
+
+    private fun switchLandingScreen(index: Int) {
+        binding.layoutScreenLive.visibility = if (index == 0) View.VISIBLE else View.GONE
+        binding.layoutScreenBroadcast.visibility = if (index == 1) View.VISIBLE else View.GONE
+        binding.layoutScreenOverlays.visibility = if (index == 2) View.VISIBLE else View.GONE
+        binding.layoutScreenSettings.visibility = if (index == 3) View.VISIBLE else View.GONE
+
+        // Tab backgrounds
+        binding.btnNavLive.setBackgroundResource(if (index == 0) R.drawable.bg_tab_active else 0)
+        binding.btnNavBroadcast.setBackgroundResource(if (index == 1) R.drawable.bg_tab_active else 0)
+        binding.btnNavOverlays.setBackgroundResource(if (index == 2) R.drawable.bg_tab_active else 0)
+        binding.btnNavSettings.setBackgroundResource(if (index == 3) R.drawable.bg_tab_active else 0)
+
+        // Text colors
+        val activeColor = Color.WHITE
+        val mutedColor = ContextCompat.getColor(this, R.color.text_muted)
+        binding.tvNavLiveTitle.setTextColor(if (index == 0) activeColor else mutedColor)
+        binding.tvNavBroadcastTitle.setTextColor(if (index == 1) activeColor else mutedColor)
+        binding.tvNavOverlaysTitle.setTextColor(if (index == 2) activeColor else mutedColor)
+        binding.tvNavSettingsTitle.setTextColor(if (index == 3) activeColor else mutedColor)
+
+        // Mode sync
+        if (index == 1 || index == 2) {
+            currentMode = ProductionMode.IN_APP_STUDIO
+            binding.overlayView.compositor.isOverlayEnabled = binding.switchOverlays.isChecked
+            binding.overlayView.invalidate()
+        } else if (index == 3) {
+            currentMode = ProductionMode.BRIDGE_TO_OBS
+            binding.overlayView.compositor.isOverlayEnabled = false
+            binding.overlayView.invalidate()
         }
     }
 
@@ -1585,6 +1795,49 @@ class MainActivity : AppCompatActivity() {
         isStreaming = true
         isScreenPreviewPeeking = false
 
+        if (activeBackend == CameraBackend.NETWORK_RTMP) {
+            // Wireless Sony RTMP Stream is already hardware-encoded H.264 @ 1080p 60fps!
+            Thread {
+                var waited = 0
+                while ((rtmpIngestServer?.sps == null || rtmpIngestServer?.pps == null) && waited < 3000) {
+                    Thread.sleep(50)
+                    waited += 50
+                }
+                val sps = rtmpIngestServer?.sps
+                val pps = rtmpIngestServer?.pps
+                Log.d(TAG, "Sony Ingest SPS ready (sps=${sps?.size}B, pps=${pps?.size}B)")
+
+                rtmpStreamManager = RtmpStreamManager(this)
+                rtmpStreamManager?.startMultiStream(
+                    destinations = destinations,
+                    sps = sps,
+                    pps = pps,
+                    onTargetConnected = { _, label ->
+                        runOnUiThread {
+                            binding.btnToggleStudioLive.text = "STOP BROADCAST"
+                            binding.btnToggleStudioLive.setBackgroundResource(R.drawable.bg_cta_rounded)
+                            binding.btnToggleStudioLive.setTextColor(Color.BLACK)
+                            updateLiveBadge(true, "🔴 LIVE: $label")
+                            showToast("📡 Live on $label!")
+                        }
+                    },
+                    onTargetFailed = { _, label, err ->
+                        runOnUiThread {
+                            showToast("⚠️ $label: $err")
+                        }
+                    },
+                    onAllDisconnected = {
+                        runOnUiThread {
+                            stopBroadcasting()
+                            showToast("All live broadcasts ended")
+                        }
+                    }
+                )
+                StreamingForegroundService.start(this@MainActivity, "🔴 LIVE — Multi-Broadcaster")
+            }.start()
+            return
+        }
+
         val encWidth = if (captureWidth > 0) captureWidth else 1920
         val encHeight = if (captureHeight > 0) captureHeight else 1080
         val encBitrate = if (encWidth <= 1280) 2_500_000 else 4_500_000
@@ -1614,7 +1867,7 @@ class MainActivity : AppCompatActivity() {
                 destinations = destinations,
                 sps = sps,
                 pps = pps,
-                onTargetConnected = { id, label ->
+                onTargetConnected = { _, label ->
                     runOnUiThread {
                         binding.btnToggleStudioLive.text = "STOP BROADCAST"
                         binding.btnToggleStudioLive.setBackgroundResource(R.drawable.bg_cta_rounded)
@@ -1623,7 +1876,7 @@ class MainActivity : AppCompatActivity() {
                         showToast("📡 Live on $label!")
                     }
                 },
-                onTargetFailed = { id, label, err ->
+                onTargetFailed = { _, label, err ->
                     runOnUiThread {
                         showToast("⚠️ $label: $err")
                     }
@@ -1668,7 +1921,7 @@ class MainActivity : AppCompatActivity() {
         // Restore camera to current mode (preview-only, no encoder)
         if (activeBackend == CameraBackend.NATIVE_UVC) {
             updateUvcSurfacesForCurrentMode()
-        } else {
+        } else if (activeBackend != CameraBackend.NETWORK_RTMP) {
             cameraProvider?.let { bindCamera(currentMode) }
         }
 

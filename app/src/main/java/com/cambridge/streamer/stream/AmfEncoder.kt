@@ -145,4 +145,69 @@ object AmfEncoder {
         )
         return out.toByteArray()
     }
+
+    /** AMF0 _result response for "connect" command */
+    fun buildConnectSuccessResponse(txId: Double): ByteArray {
+        val out = ByteArrayOutputStream()
+        out.write(encodeString("_result"))
+        out.write(encodeNumber(txId))
+        out.write(
+            encodeObject(
+                listOf(
+                    "fmsVer" to encodeString("FMS/3,5,7,7009"),
+                    "capabilities" to encodeNumber(31.0),
+                    "mode" to encodeNumber(1.0)
+                )
+            )
+        )
+        out.write(
+            encodeObject(
+                listOf(
+                    "level" to encodeString("status"),
+                    "code" to encodeString("NetConnection.Connect.Success"),
+                    "description" to encodeString("Connection succeeded."),
+                    "data" to encodeObject(listOf("version" to encodeString("3,5,7,7009")))
+                )
+            )
+        )
+        return out.toByteArray()
+    }
+
+    /** AMF0 _result response for "createStream" command */
+    fun buildCreateStreamSuccessResponse(txId: Double, streamId: Double = 1.0): ByteArray {
+        val out = ByteArrayOutputStream()
+        out.write(encodeString("_result"))
+        out.write(encodeNumber(txId))
+        out.write(encodeNull())
+        out.write(encodeNumber(streamId))
+        return out.toByteArray()
+    }
+
+    /** AMF0 onStatus response for "publish" command */
+    fun buildPublishStartResponse(): ByteArray {
+        val out = ByteArrayOutputStream()
+        out.write(encodeString("onStatus"))
+        out.write(encodeNumber(0.0))
+        out.write(encodeNull())
+        out.write(
+            encodeObject(
+                listOf(
+                    "level" to encodeString("status"),
+                    "code" to encodeString("NetStream.Publish.Start"),
+                    "description" to encodeString("Started publishing stream.")
+                )
+            )
+        )
+        return out.toByteArray()
+    }
+
+    /** Generic AMF0 _result response for releaseStream, FCPublish, etc. */
+    fun buildGenericSuccessResponse(txId: Double): ByteArray {
+        val out = ByteArrayOutputStream()
+        out.write(encodeString("_result"))
+        out.write(encodeNumber(txId))
+        out.write(encodeNull())
+        out.write(encodeNull())
+        return out.toByteArray()
+    }
 }
